@@ -1,0 +1,41 @@
+# Loads default set of integrations. Do not remove.
+default_config:
+
+homeassistant:
+  external_url: !env_var EXTERNAL_URL
+  internal_url: !env_var INTERNAL_URL
+
+# Load frontend themes from the themes folder
+frontend:
+  themes: !include_dir_merge_named themes
+
+automation: !include_dir_merge_list automations/
+script: !include scripts.yaml
+scene: !include scenes.yaml
+input_boolean: !include input_boolean.yaml
+timer: !include timer.yaml
+
+http:
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 127.0.0.1
+    - ::1
+    # Fixed Docker bridge subnets (ha_net and frigate_bridge)
+    - 172.18.0.0/16
+    - 172.21.0.0/16
+    - !env_var LAN_SUBNET
+  ip_ban_enabled: true              # auto-ban on failed logins
+  login_attempts_threshold: 3
+  cors_allowed_origins:
+    - !env_var EXTERNAL_URL
+
+# Enable MQTT integration (configure broker via UI)
+mqtt:
+
+logger:
+  default: info
+  logs:
+    homeassistant.components.automation: debug
+    homeassistant.components.mqtt: debug
+    homeassistant.components.notify: debug
+    custom_components.frigate: debug

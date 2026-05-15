@@ -1,0 +1,10 @@
+server {
+  listen 127.0.0.1:18081;
+  server_name _;
+  location = /healthz {
+    proxy_set_header Host ${HA_EXTERNAL_HOST};
+    proxy_pass http://homeassistant:8123/;
+    proxy_connect_timeout 1s;
+    proxy_read_timeout 1s;
+  }
+}

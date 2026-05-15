@@ -1,0 +1,10 @@
+[Unit]
+Description=Weekly rebuild of Home Assistant image from compose
+
+[Timer]
+OnCalendar=Sun *-*-* 04:30:00
+RandomizedDelaySec=900
+Persistent=true
+
+[Install]
+WantedBy=timers.target

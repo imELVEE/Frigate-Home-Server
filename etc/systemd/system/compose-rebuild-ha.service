@@ -1,0 +1,25 @@
+[Unit]
+Description=Rebuild and restart Home Assistant from compose (weekly)
+Wants=docker.service network-online.target
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/reolink_server_admin/ha
+
+# Take a server snapshot before touching the HA container
+# The leading "-" means "don't fail the rebuild if the snapshot script errors"
+ExecStartPre=-/home/reolink_server_admin/scripts/server_make_snapshot.sh
+
+# Pull any updated base layers, rebuild your Dockerfile, then restart HA
+ExecStart=/home/reolink_server_admin/ha/compose.sh -f /home/reolink_server_admin/ha/docker-compose.yml pull homeassistant
+ExecStart=/home/reolink_server_admin/ha/compose.sh -f /home/reolink_server_admin/ha/docker-compose.yml build --pull homeassistant
+ExecStart=/home/reolink_server_admin/ha/compose.sh -f /home/reolink_server_admin/ha/docker-compose.yml up -d --no-deps homeassistant
+# Optional: prune dangling layers
+ExecStartPost=/usr/bin/docker image prune -f
+
+# run as root to avoid docker socket permission issues
+User=root
+
+[Install]
+WantedBy=multi-user.target

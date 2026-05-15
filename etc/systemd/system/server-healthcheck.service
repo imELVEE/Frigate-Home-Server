@@ -1,0 +1,7 @@
+[Unit]
+Description=Server healthcheck via ha_eos_check.sh (with MQTT alert)
+
+[Service]
+Type=oneshot
+ExecStart=/home/reolink_server_admin/scripts/server_healthcheck.sh
+

@@ -1,0 +1,231 @@
+- id: frigate_my_silence_buttons
+  alias: Frigate — My notification silence buttons
+  mode: single
+  trigger:
+    - platform: event
+      event_type: mobile_app_notification_action
+      event_data:
+        action: SILENCE_MY_FRONT_DOOR_30M
+      id: my_front_door
+    - platform: event
+      event_type: mobile_app_notification_action
+      event_data:
+        action: SILENCE_MY_DRIVEWAY_30M
+      id: my_driveway
+    - platform: event
+      event_type: mobile_app_notification_action
+      event_data:
+        action: SILENCE_MY_BACKYARD_30M
+      id: my_backyard
+    - platform: event
+      event_type: mobile_app_notification_action
+      event_data:
+        action: SILENCE_MY_SIDE_GATE_30M
+      id: my_side_gate
+    - platform: event
+      event_type: mobile_app_notification_action
+      event_data:
+        action: SILENCE_MY_ALL
+      id: my_all
+  action:
+    - choose:
+        - conditions: "{{ trigger.id == 'my_front_door' }}"
+          sequence:
+            - service: input_boolean.turn_on
+              target:
+                entity_id: input_boolean.front_door_my_notifications_silenced
+            - service: timer.start
+              target:
+                entity_id: timer.front_door_my_notification_silence
+        - conditions: "{{ trigger.id == 'my_driveway' }}"
+          sequence:
+            - service: input_boolean.turn_on
+              target:
+                entity_id: input_boolean.driveway_my_notifications_silenced
+            - service: timer.start
+              target:
+                entity_id: timer.driveway_my_notification_silence
+        - conditions: "{{ trigger.id == 'my_backyard' }}"
+          sequence:
+            - service: input_boolean.turn_on
+              target:
+                entity_id: input_boolean.backyard_my_notifications_silenced
+            - service: timer.start
+              target:
+                entity_id: timer.backyard_my_notification_silence
+        - conditions: "{{ trigger.id == 'my_side_gate' }}"
+          sequence:
+            - service: input_boolean.turn_on
+              target:
+                entity_id: input_boolean.side_gate_my_notifications_silenced
+            - service: timer.start
+              target:
+                entity_id: timer.side_gate_my_notification_silence
+        - conditions: "{{ trigger.id == 'my_all' }}"
+          sequence:
+            - service: input_boolean.turn_on
+              target:
+                entity_id: input_boolean.my_notifications_all_silenced
+
+- id: frigate_my_unsilence_timers
+  alias: Frigate — My notification timers unsilence
+  mode: single
+  trigger:
+    - platform: event
+      event_type: timer.finished
+      event_data:
+        entity_id: timer.front_door_my_notification_silence
+      id: my_front_door
+    - platform: event
+      event_type: timer.finished
+      event_data:
+        entity_id: timer.driveway_my_notification_silence
+      id: my_driveway
+    - platform: event
+      event_type: timer.finished
+      event_data:
+        entity_id: timer.backyard_my_notification_silence
+      id: my_backyard
+    - platform: event
+      event_type: timer.finished
+      event_data:
+        entity_id: timer.side_gate_my_notification_silence
+      id: my_side_gate
+  action:
+    - choose:
+        - conditions: "{{ trigger.id == 'my_front_door' }}"
+          sequence:
+            - service: input_boolean.turn_off
+              target:
+                entity_id: input_boolean.front_door_my_notifications_silenced
+        - conditions: "{{ trigger.id == 'my_driveway' }}"
+          sequence:
+            - service: input_boolean.turn_off
+              target:
+                entity_id: input_boolean.driveway_my_notifications_silenced
+        - conditions: "{{ trigger.id == 'my_backyard' }}"
+          sequence:
+            - service: input_boolean.turn_off
+              target:
+                entity_id: input_boolean.backyard_my_notifications_silenced
+        - conditions: "{{ trigger.id == 'my_side_gate' }}"
+          sequence:
+            - service: input_boolean.turn_off
+              target:
+                entity_id: input_boolean.side_gate_my_notifications_silenced
+
+- id: frigate_someone_silence_buttons
+  alias: Frigate — Someone notification silence buttons
+  mode: single
+  trigger:
+    - platform: event
+      event_type: mobile_app_notification_action
+      event_data:
+        action: SILENCE_SOMEONE_FRONT_DOOR_30M
+      id: someone_front_door
+    - platform: event
+      event_type: mobile_app_notification_action
+      event_data:
+        action: SILENCE_SOMEONE_DRIVEWAY_30M
+      id: someone_driveway
+    - platform: event
+      event_type: mobile_app_notification_action
+      event_data:
+        action: SILENCE_SOMEONE_BACKYARD_30M
+      id: someone_backyard
+    - platform: event
+      event_type: mobile_app_notification_action
+      event_data:
+        action: SILENCE_SOMEONE_SIDE_GATE_30M
+      id: someone_side_gate
+    - platform: event
+      event_type: mobile_app_notification_action
+      event_data:
+        action: SILENCE_SOMEONE_ALL
+      id: someone_all
+  action:
+    - choose:
+        - conditions: "{{ trigger.id == 'someone_front_door' }}"
+          sequence:
+            - service: input_boolean.turn_on
+              target:
+                entity_id: input_boolean.front_door_someone_notifications_silenced
+            - service: timer.start
+              target:
+                entity_id: timer.front_door_someone_notification_silence
+        - conditions: "{{ trigger.id == 'someone_driveway' }}"
+          sequence:
+            - service: input_boolean.turn_on
+              target:
+                entity_id: input_boolean.driveway_someone_notifications_silenced
+            - service: timer.start
+              target:
+                entity_id: timer.driveway_someone_notification_silence
+        - conditions: "{{ trigger.id == 'someone_backyard' }}"
+          sequence:
+            - service: input_boolean.turn_on
+              target:
+                entity_id: input_boolean.backyard_someone_notifications_silenced
+            - service: timer.start
+              target:
+                entity_id: timer.backyard_someone_notification_silence
+        - conditions: "{{ trigger.id == 'someone_side_gate' }}"
+          sequence:
+            - service: input_boolean.turn_on
+              target:
+                entity_id: input_boolean.side_gate_someone_notifications_silenced
+            - service: timer.start
+              target:
+                entity_id: timer.side_gate_someone_notification_silence
+        - conditions: "{{ trigger.id == 'someone_all' }}"
+          sequence:
+            - service: input_boolean.turn_on
+              target:
+                entity_id: input_boolean.someone_notifications_all_silenced
+
+- id: frigate_someone_unsilence_timers
+  alias: Frigate — Someone notification timers unsilence
+  mode: single
+  trigger:
+    - platform: event
+      event_type: timer.finished
+      event_data:
+        entity_id: timer.front_door_someone_notification_silence
+      id: someone_front_door
+    - platform: event
+      event_type: timer.finished
+      event_data:
+        entity_id: timer.driveway_someone_notification_silence
+      id: someone_driveway
+    - platform: event
+      event_type: timer.finished
+      event_data:
+        entity_id: timer.backyard_someone_notification_silence
+      id: someone_backyard
+    - platform: event
+      event_type: timer.finished
+      event_data:
+        entity_id: timer.side_gate_someone_notification_silence
+      id: someone_side_gate
+  action:
+    - choose:
+        - conditions: "{{ trigger.id == 'someone_front_door' }}"
+          sequence:
+            - service: input_boolean.turn_off
+              target:
+                entity_id: input_boolean.front_door_someone_notifications_silenced
+        - conditions: "{{ trigger.id == 'someone_driveway' }}"
+          sequence:
+            - service: input_boolean.turn_off
+              target:
+                entity_id: input_boolean.driveway_someone_notifications_silenced
+        - conditions: "{{ trigger.id == 'someone_backyard' }}"
+          sequence:
+            - service: input_boolean.turn_off
+              target:
+                entity_id: input_boolean.backyard_someone_notifications_silenced
+        - conditions: "{{ trigger.id == 'someone_side_gate' }}"
+          sequence:
+            - service: input_boolean.turn_off
+              target:
+                entity_id: input_boolean.side_gate_someone_notifications_silenced

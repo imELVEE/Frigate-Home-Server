@@ -1,0 +1,8 @@
+[Unit]
+Description=Weekly reboot (graceful)
+After=ha-stack.service
+
+[Service]
+Type=oneshot
+ExecStartPre=-/home/reolink_server_admin/scripts/server_make_snapshot.sh
+ExecStart=/usr/sbin/shutdown -r +1 "Weekly maintenance reboot"

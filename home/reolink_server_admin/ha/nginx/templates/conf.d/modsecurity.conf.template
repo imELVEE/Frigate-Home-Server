@@ -1,0 +1,11 @@
+modsecurity on;
+modsecurity_rules_file /etc/modsecurity.d/setup.conf;
+# Force audit logging to the mounted file for persistent WAF tuning/forensics.
+modsecurity_rules '
+  SecAuditEngine On
+  SecAuditLog /var/log/modsecurity/audit.log
+  SecAuditLogFormat JSON
+  SecAuditLogParts ABCEFHJKZ
+  SecAuditLogType Serial
+  SecAuditLogRelevantStatus ".*"
+';

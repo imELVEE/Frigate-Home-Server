@@ -1,0 +1,16 @@
+[Unit]
+Description=Home stack (docker compose)
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+User=reolink_server_admin
+WorkingDirectory=/home/reolink_server_admin/ha
+Environment=HOME=/home/reolink_server_admin
+RemainAfterExit=true
+ExecStart=/home/reolink_server_admin/ha/compose.sh up -d
+ExecStop=/home/reolink_server_admin/ha/compose.sh down
+
+[Install]
+WantedBy=multi-user.target

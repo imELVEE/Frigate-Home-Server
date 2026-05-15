@@ -1,0 +1,109 @@
+mqtt:
+  enabled: true
+  host: mosquitto
+  port: 8883
+  user: "{FRIGATE_MQTT_USER}"     # format-style env substitution
+  password: "{FRIGATE_MQTT_PASSWORD}"  # format-style env substitution
+  topic_prefix: frigate
+  client_id: frigate
+  tls_ca_certs: /config/mosquitto_ca.crt
+  tls_insecure: false
+
+ffmpeg:
+  hwaccel_args: preset-vaapi    # You mentioned VAAPI is preferred on your Intel setup
+
+detectors:
+  cpu:
+    type: cpu
+    num_threads: 3              # Appropriate for a 2014 quad-core CPU
+
+detect:
+  enabled: true
+
+objects:
+  track:
+    - person
+  filters:
+    person:
+      min_score: 0.5            # Confidence to start a track
+      threshold: 0.6            # Confidence to promote/maintain a track
+      min_area: 2500            # Prevent small ghost detections
+      max_area: 1000000         # Safe upper limit, can adjust later if needed
+
+snapshots:
+  enabled: true
+  retain:
+    default: 3                  # Retain for 3 days
+  bounding_box: true
+  crop: false
+  height: 640                   # Resolution of snapshot images
+
+record:
+  enabled: true
+  retain:
+    days: 2
+    mode: motion
+
+motion:
+  threshold: 30                 # Global default, can override per camera
+  contour_area: 75
+
+cameras:
+  backyard:
+    ffmpeg:
+      inputs:
+        - path: 
+            rtsp://{FRIGATE_BACKYARD_RTSP_USER}:{FRIGATE_BACKYARD_RTSP_PASSWORD}@{FRIGATE_NVR_HOST}:554/h264Preview_01_sub
+          roles: [detect, record, rtmp, ui]
+    motion:
+      mask: []
+    detect:
+      width: 640
+      height: 480
+      fps: 4
+
+  side_gate:
+    ffmpeg:
+      inputs:
+        - path: 
+            rtsp://{FRIGATE_SIDE_GATE_RTSP_USER}:{FRIGATE_SIDE_GATE_RTSP_PASSWORD}@{FRIGATE_NVR_HOST}:554/h264Preview_02_sub
+          roles: [detect, record, rtmp, ui]
+    motion:
+      mask: []
+    detect:
+      width: 640
+      height: 480
+      fps: 4
+
+  driveway:
+    ffmpeg:
+      inputs:
+        - path: 
+            rtsp://{FRIGATE_DRIVEWAY_RTSP_USER}:{FRIGATE_DRIVEWAY_RTSP_PASSWORD}@{FRIGATE_NVR_HOST}:554/h264Preview_03_sub
+          roles: [detect, record, rtmp, ui]
+    motion:
+      mask: []
+    detect:
+      width: 640
+      height: 480
+      fps: 4
+
+  front_door:
+    ffmpeg:
+      inputs:
+        - path: 
+            rtsp://{FRIGATE_FRONT_DOOR_RTSP_USER}:{FRIGATE_FRONT_DOOR_RTSP_PASSWORD}@{FRIGATE_NVR_HOST}:554/h264Preview_04_sub
+          roles: [detect, record, rtmp, ui]
+    motion:
+      mask: []
+    detect:
+      width: 640
+      height: 480
+      fps: 4
+
+logger:
+  default: info
+  logs:
+    frigate.mqtt: debug
+    frigate.video: warning
+version: 0.16-0

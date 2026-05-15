@@ -1,0 +1,15 @@
+[Unit]
+Description=Renew Let's Encrypt certs with acme.sh (Dynu DNS)
+Wants=network-online.target docker.service
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/reolink_server_admin/ha
+EnvironmentFile=/etc/acme/dynu.env
+ExecStart=/home/reolink_server_admin/scripts/acme_renew.sh
+ExecStartPost=/home/reolink_server_admin/ha/compose.sh -f /home/reolink_server_admin/ha/docker-compose.yml exec -T nginx /usr/sbin/nginx -s reload
+User=root
+
+[Install]
+WantedBy=multi-user.target

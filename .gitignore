@@ -1,0 +1,161 @@
+# Secrets and envs
+home/**/secrets/*
+!home/**/secrets/*.example
+.env
+.env.*
+*.env
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+*.jks
+*.csr
+
+# SSH host keys
+etc/ssh/ssh_host_*
+
+# CrowdSec credentials
+etc/crowdsec/*_credentials.yaml
+etc/crowdsec/bouncers/*.yaml
+etc/crowdsec/bouncers/
+
+# Personal/system state (PII, host artifacts)
+.ssh/
+.bash_history
+.bashrc
+.profile
+.lesshst
+.wget-hsts
+.cache/
+.local/
+.cloudflared/
+.codex/
+.docker/
+.vscode/
+.vscode-server/
+.idea/
+*.code-workspace
+.DS_Store
+Thumbs.db
+home/**/.bash_logout
+home/**/.sudo_as_admin_successful
+home/**/.dotnet/
+
+# Editor/OS temp files
+*.swp
+*.swo
+*.orig
+*.tmp
+
+# Python build/test artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Home Assistant runtime/state
+ha/homeassistant/home-assistant_v2.db*
+ha/homeassistant/.storage/
+ha/homeassistant/home-assistant.log*
+ha/homeassistant/ip_bans.yaml
+ha/homeassistant/secrets.yaml
+ha/homeassistant/.ha_run.lock
+ha/homeassistant/.HA_VERSION
+ha/homeassistant/.cloud/
+ha/homeassistant/tts/
+
+# ACME keys/certs
+ha/acme/
+
+# Mosquitto state/keys
+ha/mosquitto/data/
+ha/mosquitto/config/passwd
+ha/mosquitto/config/passwd.backup*
+ha/mosquitto/config/mosquitto.conf
+ha/mosquitto/ca_secure/
+ha/mosquitto/config/tls/
+ha/mosquitto/log/
+
+# Nginx logs
+ha/nginx/log/
+ha/nginx/logs/
+ha/nginx/ssl/
+ha/homeassistant/tls/
+
+# Frigate state/media backups
+ha/frigate/config/backup.db
+ha/frigate/media/
+ha/frigate/config/.jwt_secret
+ha/frigate/config/.exports
+ha/frigate/config/.timeline
+ha/frigate/config/.vacuum
+
+# Nginx rendered configs (templates are tracked instead)
+ha/nginx/conf.d/homeassistant.conf
+ha/nginx/conf.d/00-healthz.conf
+
+# Ignore host /etc snapshot; re-allow custom unit files we track
+etc/**
+!etc/systemd/
+!etc/systemd/system/
+!etc/systemd/system/acme-renew.service
+!etc/systemd/system/acme-renew.timer
+!etc/systemd/system/server-healthcheck.service
+!etc/systemd/system/server-healthcheck.timer
+!etc/systemd/system/docker-prune.service
+!etc/systemd/system/docker-prune.timer
+!etc/systemd/system/compose-rebuild-ha.service
+!etc/systemd/system/compose-rebuild-ha.timer
+!etc/systemd/system/weekly-reboot.service
+!etc/systemd/system/weekly-reboot.timer
+!etc/systemd/system/ha-stack.service
+
+# Same paths under home/reolink_server_admin/
+home/reolink_server_admin/ha/homeassistant/home-assistant_v2.db*
+home/reolink_server_admin/ha/homeassistant/.storage/
+home/reolink_server_admin/ha/homeassistant/home-assistant.log*
+home/reolink_server_admin/ha/homeassistant/ip_bans.yaml
+home/reolink_server_admin/ha/homeassistant/secrets.yaml
+home/reolink_server_admin/ha/homeassistant/.ha_run.lock
+home/reolink_server_admin/ha/homeassistant/.HA_VERSION
+home/reolink_server_admin/ha/homeassistant/.cloud/
+home/reolink_server_admin/ha/homeassistant/tts/
+home/reolink_server_admin/ha/acme/
+home/reolink_server_admin/ha/mosquitto/data/
+home/reolink_server_admin/ha/mosquitto/config/passwd
+home/reolink_server_admin/ha/mosquitto/config/passwd.backup*
+home/reolink_server_admin/ha/mosquitto/config/mosquitto.conf
+home/reolink_server_admin/ha/mosquitto/ca_secure/
+home/reolink_server_admin/ha/mosquitto/config/tls/
+home/reolink_server_admin/ha/mosquitto/log/
+home/reolink_server_admin/ha/nginx/log/
+home/reolink_server_admin/ha/nginx/logs/
+home/reolink_server_admin/ha/nginx/ssl/
+home/reolink_server_admin/ha/homeassistant/tls/
+home/reolink_server_admin/ha/frigate/config/backup.db
+home/reolink_server_admin/ha/frigate/media/
+home/reolink_server_admin/ha/frigate/config/.jwt_secret
+home/reolink_server_admin/ha/frigate/config/.exports
+home/reolink_server_admin/ha/frigate/config/.timeline
+home/reolink_server_admin/ha/frigate/config/.vacuum
+home/reolink_server_admin/ha/nginx/conf.d/homeassistant.conf
+home/reolink_server_admin/ha/nginx/conf.d/00-healthz.conf
+
+# Snapshots/backups
+snapshots/
+
+# System/service logs
+logs/
+
+# Misc generated
+*.log
+*.db
+*.db-shm
+*.db-wal
+*.bak
+*.backup

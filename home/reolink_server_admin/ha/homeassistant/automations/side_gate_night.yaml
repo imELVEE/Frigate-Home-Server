@@ -1,0 +1,192 @@
+- id: frigate_side_gate_night_mqtt
+  alias: Frigate Side Gate — Person linger 15s at night
+  mode: queued
+  trigger:
+    - platform: mqtt
+      topic: frigate/reviews
+      value_template: "{{ value_json.after.severity | default('') }}"
+      payload: alert
+  condition:
+    # Only this camera
+    - condition: template
+      value_template: "{{ trigger.payload_json.after.camera | default('') == 'side_gate' }}"
+
+    # Only if a person is one of the objects
+    - condition: template
+      value_template: "{{ 'person' in (trigger.payload_json.after.data.objects | default([])) }}"
+
+    # Avoid refiring on the same review item once already alerting
+    - condition: template
+      value_template: >
+        {{
+          (trigger.payload_json.type | default('') == 'new')
+          or (
+            trigger.payload_json.type | default('') == 'end'
+            and (trigger.payload_json.before.end_time is none)
+          )
+        }}
+
+    # Night only
+    - condition: or
+      conditions:
+        - condition: sun
+          after: sunset
+        - condition: sun
+          before: sunrise
+  action:
+    - variables:
+        base_url: !env_var EXTERNAL_URL
+        review_id: "{{ trigger.payload_json.after.id | string }}"
+        event_id: "{{ trigger.payload_json.after.data.detections[0] | default(trigger.payload_json.after.id | string) }}"
+        start_ts: "{{ trigger.payload_json.after.data.start_time | default(0) | int }}"
+        my_ok: >
+          {{ is_state('input_boolean.my_notifications_all_silenced','off')
+             and is_state('input_boolean.side_gate_my_notifications_silenced','off') }}
+        someone_ok: >
+          {{ is_state('input_boolean.someone_notifications_all_silenced','off')
+             and is_state('input_boolean.side_gate_someone_notifications_silenced','off') }}
+
+    # Linger gate: wait a bit, then require review duration >=15s
+    - delay: "00:00:15"
+    - condition: template
+      value_template: >
+        {% set start = trigger.payload_json.after.start_time | float(0) %}
+        {% set end = trigger.payload_json.after.end_time %}
+        {% set now_ts = now().timestamp() %}
+        {% set duration = (end if end is not none else now_ts) - start %}
+        {{ duration >= 15 }}
+
+    - choose:
+        - conditions:
+            - condition: template
+              value_template: "{{ trigger.payload_json.type | default('') == 'end' }}"
+          sequence:
+            - choose:
+                - conditions:
+                    - condition: template
+                      value_template: "{{ my_ok }}"
+                  sequence:
+                    - service: !env_var MY_PHONE
+                      data:
+                        title: "Side Gate: Person (updated)"
+                        message: >
+                          Person lingered {{ (trigger.payload_json.after.end_time | float(0) - trigger.payload_json.after.start_time | float(0)) | round(1) }}s.
+                        data:
+                          tag: "{{ review_id }}"
+                          when: "{{ start_ts }}"
+                          image: "{{ base_url }}/api/frigate/notifications/{{ event_id }}/snapshot.jpg?bbox=1"
+                          color: "steelblue"
+                          sticky: true
+                          icon: "mdi:cctv"
+                          alert_once: true
+                          importance: "low"
+                          actions:
+                            - action: URI
+                              title: Live
+                              uri: "{{ base_url }}/lovelace/security"
+                            - action: URI
+                              title: Snapshot
+                              uri: "{{ base_url }}/api/frigate/notifications/{{ event_id }}/snapshot.jpg?bbox=1"
+                            - action: URI
+                              title: Clip
+                              uri: "{{ base_url }}/api/frigate/notifications/{{ event_id }}/clip.mp4"
+                            - action: SILENCE_MY_SIDE_GATE_30M
+                              title: Silence my alerts 30m
+                            - action: SILENCE_MY_ALL
+                              title: Silence my alerts (all)
+            - choose:
+                - conditions:
+                    - condition: template
+                      value_template: "{{ someone_ok }}"
+                  sequence:
+                    - service: !env_var SOMEONE_ELSE_PHONE
+                      data:
+                        title: "Side Gate: Person (updated)"
+                        message: >
+                          Person lingered {{ (trigger.payload_json.after.end_time | float(0) - trigger.payload_json.after.start_time | float(0)) | round(1) }}s.
+                        data:
+                          tag: "{{ review_id }}"
+                          when: "{{ start_ts }}"
+                          image: "{{ base_url }}/api/frigate/notifications/{{ event_id }}/snapshot.jpg?bbox=1"
+                          color: "steelblue"
+                          sticky: true
+                          icon: "mdi:cctv"
+                          alert_once: true
+                          importance: "low"
+                          actions:
+                            - action: URI
+                              title: Live
+                              uri: "{{ base_url }}/lovelace/security"
+                            - action: URI
+                              title: Snapshot
+                              uri: "{{ base_url }}/api/frigate/notifications/{{ event_id }}/snapshot.jpg?bbox=1"
+                            - action: URI
+                              title: Clip
+                              uri: "{{ base_url }}/api/frigate/notifications/{{ event_id }}/clip.mp4"
+                            - action: SILENCE_SOMEONE_SIDE_GATE_30M
+                              title: Silence their alerts 30m
+                            - action: SILENCE_SOMEONE_ALL
+                              title: Silence their alerts (all)
+      default:
+        - choose:
+            - conditions:
+                - condition: template
+                  value_template: "{{ my_ok }}"
+              sequence:
+                - service: !env_var MY_PHONE
+                  data:
+                    title: "Side Gate: Person"
+                    message: "Person lingered 15s at night."
+                    data:
+                      tag: "{{ review_id }}"
+                      when: "{{ start_ts }}"
+                      image: "{{ base_url }}/api/frigate/notifications/{{ event_id }}/thumbnail.jpg?format=android"
+                      color: "steelblue"
+                      sticky: true
+                      icon: "mdi:cctv"
+                      importance: "high"
+                      actions:
+                        - action: URI
+                          title: Live
+                          uri: "{{ base_url }}/lovelace/security"
+                        - action: URI
+                          title: Snapshot
+                          uri: "{{ base_url }}/api/frigate/notifications/{{ event_id }}/snapshot.jpg?bbox=1"
+                        - action: URI
+                          title: Clip
+                          uri: "{{ base_url }}/api/frigate/notifications/{{ event_id }}/clip.mp4"
+                        - action: SILENCE_MY_SIDE_GATE_30M
+                          title: Silence my alerts 30m
+                        - action: SILENCE_MY_ALL
+                          title: Silence my alerts (all)
+        - choose:
+            - conditions:
+                - condition: template
+                  value_template: "{{ someone_ok }}"
+              sequence:
+                - service: !env_var SOMEONE_ELSE_PHONE
+                  data:
+                    title: "Side Gate: Person"
+                    message: "Person lingered 15s at night."
+                    data:
+                      tag: "{{ review_id }}"
+                      when: "{{ start_ts }}"
+                      image: "{{ base_url }}/api/frigate/notifications/{{ event_id }}/thumbnail.jpg?format=android"
+                      color: "steelblue"
+                      sticky: true
+                      icon: "mdi:cctv"
+                      importance: "high"
+                      actions:
+                        - action: URI
+                          title: Live
+                          uri: "{{ base_url }}/lovelace/security"
+                        - action: URI
+                          title: Snapshot
+                          uri: "{{ base_url }}/api/frigate/notifications/{{ event_id }}/snapshot.jpg?bbox=1"
+                        - action: URI
+                          title: Clip
+                          uri: "{{ base_url }}/api/frigate/notifications/{{ event_id }}/clip.mp4"
+                        - action: SILENCE_SOMEONE_SIDE_GATE_30M
+                          title: Silence their alerts 30m
+                        - action: SILENCE_SOMEONE_ALL
+                          title: Silence their alerts (all)

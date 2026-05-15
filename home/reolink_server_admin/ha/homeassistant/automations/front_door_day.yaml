@@ -1,0 +1,245 @@
+- id: frigate_front_door_person_day_mqtt
+  alias: Frigate Front Door — Person linger 10s during day
+  mode: queued
+  trigger:
+    - platform: mqtt
+      topic: frigate/reviews
+      value_template: "{{ value_json.after.severity | default('') }}"
+      payload: alert
+  condition:
+    # Only this camera
+    - condition: template
+      value_template: "{{ trigger.payload_json.after.camera | default('') == 'front_door' }}"
+
+    # Only if a person is one of the objects
+    - condition: template
+      value_template: "{{ 'person' in (trigger.payload_json.after.data.objects | default([])) }}"
+
+    # Avoid refiring on the same review item once already alerting
+    - condition: template
+      value_template: >
+        {{
+          (trigger.payload_json.type | default('') == 'new')
+          or (
+            trigger.payload_json.type | default('') == 'end'
+            and (trigger.payload_json.before.end_time is none)
+          )
+        }}
+
+    # Daytime only (with offsets like prior)
+    - condition: sun
+      after: sunrise
+      after_offset: "00:15:00"
+    - condition: sun
+      before: sunset
+      before_offset: "-00:15:00"
+  action:
+    - variables:
+        base_url: !env_var EXTERNAL_URL
+        review_id: "{{ trigger.payload_json.after.id | string }}"
+        event_id: "{{ trigger.payload_json.after.data.detections[0] | default(trigger.payload_json.after.id | string) }}"
+        start_ts: "{{ trigger.payload_json.after.data.start_time | default(0) | int }}"
+        my_ok: >
+          {{ is_state('input_boolean.my_notifications_all_silenced','off')
+             and is_state('input_boolean.front_door_my_notifications_silenced','off') }}
+        someone_ok: >
+          {{ is_state('input_boolean.someone_notifications_all_silenced','off')
+             and is_state('input_boolean.front_door_someone_notifications_silenced','off') }}
+    # - service: system_log.write
+    #   data:
+    #     message: >
+    #       Front door day review {{ review_id }} type={{ trigger.payload_json.type | default('') }}
+    #       cam={{ trigger.payload_json.after.camera | default('') }}
+    #       my_ok={{ my_ok }} someone_ok={{ someone_ok }}
+    #     level: info
+    #     logger: automation.front_door_day
+
+    # Linger gate: wait a bit, then require review duration >=10s (new or end events)
+    - delay: "00:00:10"
+    - condition: template
+      value_template: >
+        {% set start = trigger.payload_json.after.start_time | float(0) %}
+        {% set end = trigger.payload_json.after.end_time %}
+        {% set now_ts = now().timestamp() %}
+        {% set duration = (end if end is not none else now_ts) - start %}
+        {{ duration >= 10 }}
+
+    - choose:
+        # On review end: update notification with final snapshot
+        - conditions:
+            - condition: template
+              value_template: "{{ trigger.payload_json.type | default('') == 'end' }}"
+          sequence:
+            - choose:
+                - conditions:
+                    - condition: template
+                      value_template: "{{ my_ok }}"
+                  sequence:
+                    # - service: system_log.write
+                    #   data:
+                    #     message: "Front door day review {{ review_id }} update -> MY_PHONE"
+                    #     level: info
+                    #     logger: automation.front_door_day
+                    - service: !env_var MY_PHONE
+                      data:
+                        title: "Front Door: Person (updated)"
+                        message: >
+                          Person lingered {{ (trigger.payload_json.after.end_time | float(0) - trigger.payload_json.after.start_time | float(0)) | round(1) }}s.
+                        data:
+                          tag: "{{ review_id }}"
+                          when: "{{ start_ts }}"
+                          image: "{{ base_url }}/api/frigate/notifications/{{ event_id }}/snapshot.jpg?bbox=1"
+                          color: "steelblue"
+                          sticky: true
+                          icon: "mdi:cctv"
+                          alert_once: true
+                          importance: "low"
+                          actions:
+                            - action: URI
+                              title: Live
+                              uri: "{{ base_url }}/lovelace/security"
+                            - action: URI
+                              title: Snapshot
+                              uri: "{{ base_url }}/api/frigate/notifications/{{ event_id }}/snapshot.jpg?bbox=1"
+                            - action: URI
+                              title: Clip
+                              uri: "{{ base_url }}/api/frigate/notifications/{{ event_id }}/clip.mp4"
+                            - action: SILENCE_MY_FRONT_DOOR_30M
+                              title: Silence my alerts 30m
+                            - action: SILENCE_MY_ALL
+                              title: Silence my alerts (all)
+            - choose:
+                - conditions:
+                    - condition: template
+                      value_template: "{{ someone_ok }}"
+                  sequence:
+                    # - service: system_log.write
+                    #   data:
+                    #     message: "Front door day review {{ review_id }} update -> SOMEONE_ELSE_PHONE"
+                    #     level: info
+                    #     logger: automation.front_door_day
+                    - service: !env_var SOMEONE_ELSE_PHONE
+                      data:
+                        title: "Front Door: Person (updated)"
+                        message: >
+                          Person lingered {{ (trigger.payload_json.after.end_time | float(0) - trigger.payload_json.after.start_time | float(0)) | round(1) }}s.
+                        data:
+                          tag: "{{ review_id }}"
+                          when: "{{ start_ts }}"
+                          image: "{{ base_url }}/api/frigate/notifications/{{ event_id }}/snapshot.jpg?bbox=1"
+                          color: "steelblue"
+                          sticky: true
+                          icon: "mdi:cctv"
+                          alert_once: true
+                          importance: "low"
+                          actions:
+                            - action: URI
+                              title: Live
+                              uri: "{{ base_url }}/lovelace/security"
+                            - action: URI
+                              title: Snapshot
+                              uri: "{{ base_url }}/api/frigate/notifications/{{ event_id }}/snapshot.jpg?bbox=1"
+                            - action: URI
+                              title: Clip
+                              uri: "{{ base_url }}/api/frigate/notifications/{{ event_id }}/clip.mp4"
+                            - action: SILENCE_SOMEONE_FRONT_DOOR_30M
+                              title: Silence their alerts 30m
+                            - action: SILENCE_SOMEONE_ALL
+                              title: Silence their alerts (all)
+            - choose:
+                - conditions:
+                    - condition: template
+                      value_template: "{{ not (my_ok or someone_ok) }}"
+                  sequence:
+                    # - service: system_log.write
+                    #   data:
+                    #     message: >
+                    #       Front door day review {{ review_id }} update suppressed
+                    #       (my_ok={{ my_ok }}, someone_ok={{ someone_ok }})
+                    #     level: info
+                    #     logger: automation.front_door_day
+      default:
+        - choose:
+            - conditions:
+                - condition: template
+                  value_template: "{{ my_ok }}"
+              sequence:
+                # - service: system_log.write
+                #   data:
+                #     message: "Front door day review {{ review_id }} initial -> MY_PHONE"
+                #     level: info
+                #     logger: automation.front_door_day
+                - service: !env_var MY_PHONE
+                  data:
+                    title: "Front Door: Person"
+                    message: "Person lingered 10s during the day."
+                    data:
+                      tag: "{{ review_id }}"
+                      when: "{{ start_ts }}"
+                      image: "{{ base_url }}/api/frigate/notifications/{{ event_id }}/thumbnail.jpg?format=android"
+                      color: "steelblue"
+                      sticky: true
+                      icon: "mdi:cctv"
+                      importance: "high"
+                      actions:
+                        - action: URI
+                          title: Live
+                          uri: "{{ base_url }}/lovelace/security"
+                        - action: URI
+                          title: Snapshot
+                          uri: "{{ base_url }}/api/frigate/notifications/{{ event_id }}/snapshot.jpg?bbox=1"
+                        - action: URI
+                          title: Clip
+                          uri: "{{ base_url }}/api/frigate/notifications/{{ event_id }}/clip.mp4"
+                        - action: SILENCE_MY_FRONT_DOOR_30M
+                          title: Silence my alerts 30m
+                        - action: SILENCE_MY_ALL
+                          title: Silence my alerts (all)
+        - choose:
+            - conditions:
+                - condition: template
+                  value_template: "{{ someone_ok }}"
+              sequence:
+                # - service: system_log.write
+                #   data:
+                #     message: "Front door day review {{ review_id }} initial -> SOMEONE_ELSE_PHONE"
+                #     level: info
+                #     logger: automation.front_door_day
+                - service: !env_var SOMEONE_ELSE_PHONE
+                  data:
+                    title: "Front Door: Person"
+                    message: "Person lingered 10s during the day."
+                    data:
+                      tag: "{{ review_id }}"
+                      when: "{{ start_ts }}"
+                      image: "{{ base_url }}/api/frigate/notifications/{{ event_id }}/thumbnail.jpg?format=android"
+                      color: "steelblue"
+                      sticky: true
+                      icon: "mdi:cctv"
+                      importance: "high"
+                      actions:
+                        - action: URI
+                          title: Live
+                          uri: "{{ base_url }}/lovelace/security"
+                        - action: URI
+                          title: Snapshot
+                          uri: "{{ base_url }}/api/frigate/notifications/{{ event_id }}/snapshot.jpg?bbox=1"
+                        - action: URI
+                          title: Clip
+                          uri: "{{ base_url }}/api/frigate/notifications/{{ event_id }}/clip.mp4"
+                        - action: SILENCE_SOMEONE_FRONT_DOOR_30M
+                          title: Silence their alerts 30m
+                        - action: SILENCE_SOMEONE_ALL
+                          title: Silence their alerts (all)
+        - choose:
+            - conditions:
+                - condition: template
+                  value_template: "{{ not (my_ok or someone_ok) }}"
+              sequence:
+                # - service: system_log.write
+                #   data:
+                #     message: >
+                #       Front door day review {{ review_id }} initial suppressed
+                #       (my_ok={{ my_ok }}, someone_ok={{ someone_ok }})
+                #     level: info
+                #     logger: automation.front_door_day

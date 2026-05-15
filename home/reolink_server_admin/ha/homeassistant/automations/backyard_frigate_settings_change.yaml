@@ -1,0 +1,26 @@
+automation:
+  - id: backyard_strict_night
+    alias: "Backyard stricter motion at night"
+    trigger:
+      - platform: sun
+        event: sunset
+    action:
+      - service: mqtt.publish
+        data:
+          topic: frigate/backyard/config
+          payload: >
+            {"motion": {"threshold": 33, "contour_area": 60},
+             "objects": {"filters": {"person": {"min_score": 0.7, "min_area": 5000}}}}
+
+  - id: backyard_reset_day
+    alias: "Backyard reset motion at sunrise"
+    trigger:
+      - platform: sun
+        event: sunrise
+    action:
+      - service: mqtt.publish
+        data:
+          topic: frigate/backyard/config
+          payload: >
+            {"motion": {"threshold": 30, "contour_area": 75},
+             "objects": {"filters": {"person": {"min_score": 0.5, "min_area": 2500}}}}

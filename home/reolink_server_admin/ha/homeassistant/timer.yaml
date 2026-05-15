@@ -1,0 +1,23 @@
+front_door_my_notification_silence:
+  duration: "00:30:00"
+
+driveway_my_notification_silence:
+  duration: "00:30:00"
+
+backyard_my_notification_silence:
+  duration: "00:30:00"
+
+side_gate_my_notification_silence:
+  duration: "00:30:00"
+
+front_door_someone_notification_silence:
+  duration: "00:30:00"
+
+driveway_someone_notification_silence:
+  duration: "00:30:00"
+
+backyard_someone_notification_silence:
+  duration: "00:30:00"
+
+side_gate_someone_notification_silence:
+  duration: "00:30:00"

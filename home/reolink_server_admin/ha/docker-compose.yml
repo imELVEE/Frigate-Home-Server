@@ -1,0 +1,103 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: mosquitto
+    restart: unless-stopped
+    networks:
+    - frigate_bridge
+    volumes:
+    - ./mosquitto/config:/mosquitto/config
+    - ./mosquitto/data:/mosquitto/data
+    - ./mosquitto/log:/mosquitto/log
+  homeassistant:
+    build: ./homeassistant
+    container_name: homeassistant
+    restart: unless-stopped
+    networks:
+    - ha_net
+    - frigate_bridge
+    ports:
+    - 8123:8123
+    user: 1000:1000
+    environment:
+    - TZ=America/New_York
+    - EXTERNAL_URL=${EXTERNAL_URL}
+    - INTERNAL_URL=${INTERNAL_URL}
+    - LAN_SUBNET=${LAN_SUBNET}
+    - MY_PHONE=${MY_PHONE}
+    - SOMEONE_ELSE_PHONE=${SOMEONE_ELSE_PHONE}
+    - MQTT_USER=${MQTT_USER}
+    - MQTT_PASSWORD=${MQTT_PASSWORD}
+    volumes:
+    - ./homeassistant:/config
+    - /etc/localtime:/etc/localtime:ro
+  frigate:
+    image: ghcr.io/blakeblackshear/frigate:0.16.1
+    container_name: frigate
+    restart: unless-stopped
+    networks:
+    - frigate_bridge
+    shm_size: 256m
+    devices:
+    - /dev/dri/renderD128:/dev/dri/renderD128
+    volumes:
+    - ./frigate/config:/config
+    - ./frigate/media:/media/frigate
+    - ./mosquitto/config/tls/ca.crt:/config/mosquitto_ca.crt:ro
+    - /etc/localtime:/etc/localtime:ro
+    environment:
+    - LIBVA_DRIVER_NAME=i965
+    - FRIGATE_MQTT_USER=${MQTT_USER}
+    - FRIGATE_MQTT_PASSWORD=${MQTT_PASSWORD}
+    - FRIGATE_BACKYARD_RTSP_USER=${FRIGATE_BACKYARD_RTSP_USER}
+    - FRIGATE_BACKYARD_RTSP_PASSWORD=${FRIGATE_BACKYARD_RTSP_PASSWORD}
+    - FRIGATE_SIDE_GATE_RTSP_USER=${FRIGATE_SIDE_GATE_RTSP_USER}
+    - FRIGATE_SIDE_GATE_RTSP_PASSWORD=${FRIGATE_SIDE_GATE_RTSP_PASSWORD}
+    - FRIGATE_DRIVEWAY_RTSP_USER=${FRIGATE_DRIVEWAY_RTSP_USER}
+    - FRIGATE_DRIVEWAY_RTSP_PASSWORD=${FRIGATE_DRIVEWAY_RTSP_PASSWORD}
+    - FRIGATE_FRONT_DOOR_RTSP_USER=${FRIGATE_FRONT_DOOR_RTSP_USER}
+    - FRIGATE_FRONT_DOOR_RTSP_PASSWORD=${FRIGATE_FRONT_DOOR_RTSP_PASSWORD}
+    - FRIGATE_NVR_HOST=${FRIGATE_NVR_HOST}
+  nginx:
+    image: owasp/modsecurity-crs:nginx
+    container_name: nginx
+    restart: unless-stopped
+    networks:
+    - ha_net
+    ports:
+    - 80:80
+    - 443:443
+    volumes:
+    - ./nginx/conf.d:/etc/nginx/conf.d
+    - ./nginx/ssl:/etc/ssl:ro
+    - ./nginx/log:/var/log/nginx
+    - ./nginx/logs/modsec:/var/log/modsecurity
+    - ./nginx/entrypoint.d/05-render-ha-conf.sh:/docker-entrypoint.d/05-render-ha-conf.sh:ro
+    - ./nginx/templates/conf.d/default.conf.template:/etc/nginx/templates/conf.d/default.conf.template:ro
+    - ./nginx/templates/conf.d/modsecurity.conf.template:/etc/nginx/templates/conf.d/modsecurity.conf.template:ro
+    - ./nginx/acme:/var/www/acme:ro
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - 'code=$(curl -s -o /dev/null -w ''%{http_code}'' -H ''Host: ${HA_EXTERNAL_HOST}''
+        http://127.0.0.1:18081/healthz || echo 000); case "$$code" in 200|401|403)
+        exit 0;; *) echo "healthz http $$code" >&2; exit 1;; esac'
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    depends_on:
+    - homeassistant
+    environment:
+    - HA_EXTERNAL_HOST=${HA_EXTERNAL_HOST}
+networks:
+  ha_net:
+    driver: bridge
+    ipam:
+      config:
+      - subnet: 172.21.0.0/16
+  frigate_bridge:
+    driver: bridge
+    ipam:
+      config:
+      - subnet: 172.18.0.0/16
