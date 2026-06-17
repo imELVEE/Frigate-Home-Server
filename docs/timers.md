@@ -1,10 +1,10 @@
 # Timers
 
-This page lists the tracked systemd timers in this repo. Script-specific behavior is documented in `docs/scripts.md`.
+This page lists the systemd timers used by this setup. Script-specific behavior is documented in `docs/scripts.md`.
 
 ---
 
-## Tracked Timers
+## Timers
 
 ### `server-healthcheck.timer`
 
@@ -19,7 +19,7 @@ This page lists the tracked systemd timers in this repo. Script-specific behavio
 - **OnCalendar:** `hourly`
 - **Jitter:** `RandomizedDelaySec=300`
 - **Service:** `acme-renew.service`
-- **Action:** runs `acme_renew.sh` and reloads nginx after successful renewal
+- **Action:** runs `acme.sh --cron` inside a temporary Docker container from the unit and reloads nginx after successful renewal
 
 ### `crowdsec-hub-update.timer`
 
@@ -97,4 +97,5 @@ This page lists the tracked systemd timers in this repo. Script-specific behavio
 ## Notes
 
 - `Persistent=true` means missed runs are caught up after boot for the timers that set it.
-- This page only covers tracked systemd timers. Cron jobs and logrotate-triggered scripts are documented in `docs/scripts.md`.
+- This page only covers systemd timers. Cron jobs and logrotate-triggered scripts are documented in `docs/scripts.md`.
+- Weekly Trivy and Lynis run as cron wrappers, not systemd timers. If the package-provided `lynis.timer` is also enabled on a live host, treat that as duplicate scheduling and choose one path.

@@ -8,7 +8,7 @@ This section is optional; run it only if you expose nginx externally and want pu
 
 ## Components
 
-- **Client:** `acme.sh` (dockerized `neilpang/acme.sh` image)
+- **Client:** `acme.sh`, run from the `neilpang/acme.sh` Docker image
 - **Storage:**
   - `ha/acme/` (ACME home)
   - `ha/nginx/ssl/` (deployed `fullchain.pem`/`privkey.pem`)
@@ -20,18 +20,20 @@ This section is optional; run it only if you expose nginx externally and want pu
 
 ---
 
-## Initial Issue (dockerized)
+## Initial Issue (Docker Container)
 
 Use separate issue and install steps so the commands match normal `acme.sh` usage.
+
+The commands below do not require `acme.sh` to be installed directly on the host. `docker run --rm ... neilpang/acme.sh ...` starts a temporary container that already contains `acme.sh`, mounts the host certificate folders into that container, runs the ACME command, then removes the container when it exits.
 
 Issue the certificate:
 
     docker run --rm --env-file /etc/acme/dynu.env \
       -v ~/ha/acme:/acme.sh -v ~/ha/nginx/ssl:/deploy \
       neilpang/acme.sh sh -lc 'acme.sh --home /acme.sh \
-        --register-account -m you@example.com \
+        --register-account -m <PRIVATE_ACCOUNT_EMAIL> \
         --server letsencrypt \
-        --issue --dns dns_dynu -d home.example.net --keylength ec-256'
+        --issue --dns dns_dynu -d <PUBLIC_HOSTNAME> --keylength ec-256'
 
 Install the cert/key into nginx's SSL directory:
 
@@ -40,7 +42,7 @@ Install the cert/key into nginx's SSL directory:
       neilpang/acme.sh sh -lc 'acme.sh --home /acme.sh \
         --server letsencrypt \
         --ecc \
-        --install-cert -d home.example.net \
+        --install-cert -d <PUBLIC_HOSTNAME> \
           --fullchain-file /deploy/fullchain.pem \
           --key-file /deploy/privkey.pem'
 
@@ -49,7 +51,7 @@ Install the cert/key into nginx's SSL directory:
 - Mounts `ha/acme` into the container as `acme.sh` home.
 - Mounts `ha/nginx/ssl` as the deploy directory for certs.
 - Uses Dynu API creds from `/etc/acme/dynu.env` to satisfy DNS-01.
-- Issues an ECC-256 cert for `home.example.net`.
+- Issues an ECC-256 cert for `<PUBLIC_HOSTNAME>`.
 - Installs the resulting `fullchain.pem` and `privkey.pem` directly into the nginx SSL directory.
 - Stores the install paths so later `--cron` renewals keep those files updated automatically.
 
@@ -61,25 +63,7 @@ After this, nginx can be configured to serve HTTPS with these files.
 
 ### Systemd Service
 
-`/etc/systemd/system/acme-renew.service` (matching the repo's structure):
-
-Create `~/scripts/acme_renew.sh`:
-
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    /usr/bin/docker run --rm --env-file /etc/acme/dynu.env \
-      -v "$HOME/ha/acme:/acme.sh" \
-      -v "$HOME/ha/nginx/ssl:/deploy" \
-      neilpang/acme.sh sh -lc 'acme.sh --home /acme.sh --cron --server letsencrypt' \
-      || {
-        "$HOME/scripts/notify_cert_failure.sh" "ACME" "Primary domain via acme.sh renew failed"
-        exit 1
-      }
-
-Make it executable:
-
-    chmod +x ~/scripts/acme_renew.sh
+Certificate renewals happen through `/etc/systemd/system/acme-renew.service`. The service starts a temporary `neilpang/acme.sh` container, runs `acme.sh --cron`, then reloads nginx after the command succeeds.
 
     [Unit]
     Description=Renew Let's Encrypt certs with acme.sh (Dynu DNS)
@@ -88,18 +72,19 @@ Make it executable:
 
     [Service]
     Type=oneshot
-    WorkingDirectory=<HOME>/ha
+    WorkingDirectory=/home/reolink_server_admin/ha
     EnvironmentFile=/etc/acme/dynu.env
-    ExecStart=<HOME>/scripts/acme_renew.sh
-    ExecStartPost=<HOME>/ha/compose.sh -f <HOME>/ha/docker-compose.yml exec -T nginx /usr/sbin/nginx -s reload
+    ExecStart=/usr/bin/docker run --rm --env-file /etc/acme/dynu.env \
+      -v /home/reolink_server_admin/ha/acme:/acme.sh \
+      -v /home/reolink_server_admin/ha/nginx/ssl:/deploy \
+      neilpang/acme.sh sh -lc 'acme.sh --home /acme.sh --cron --server letsencrypt'
+    ExecStartPost=/home/reolink_server_admin/ha/compose.sh -f /home/reolink_server_admin/ha/docker-compose.yml exec -T nginx /usr/sbin/nginx -s reload
     User=root
-
-Replace `<HOME>` with your actual home directory in the systemd unit, since systemd needs absolute paths there.
 
 - Runs `acme.sh --cron` against Let's Encrypt.
 - Uses the cert already installed under `ha/nginx/ssl/`.
-- Optionally notifies on renewal failure.
 - Reloads nginx so it picks up any renewed cert.
+- Failure notifications need an explicit shell wrapper or a separate systemd failure handler. Do not append a bare `|| notify...` tail to `ExecStart=`, because systemd does not run plain `ExecStart=` lines through a shell.
 
 ### Systemd Timer
 
@@ -132,20 +117,8 @@ Note: Let's Encrypt certs are short-lived (usually 90 days), and `acme.sh --cron
 - Running `acme.sh` from the wrong working directory or without full paths under systemd leads to `docker: not found`; use absolute `/usr/bin/docker` and `WorkingDirectory=/home/.../ha`.
 - ECC installs should use `--ecc` with `--install-cert`, since the cert was issued with `--keylength ec-256`.
 - `docker compose exec` under systemd should use `-T` to avoid TTY issues.
-- Shell operators like `||` belong in a wrapper script or explicit shell, not directly in `ExecStart=`.
+- Shell operators like `||` belong in a wrapper script or explicit shell, not directly in a plain `ExecStart=` command.
 - If you inline the Docker command instead of using a wrapper script, keep it on one logical `ExecStart=` line (with `\` continuations) and keep reloads in `ExecStartPost`.
-
----
-
-## Redundant Cron (User)
-
-Optionally, you can run a local `acme.sh` install as a fallback:
-
-    crontab -e
-
-Add:
-
-    3 4 * * * "$HOME/.acme.sh"/acme.sh --cron --home "$HOME/.acme.sh" > /dev/null
 
 ---
 

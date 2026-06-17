@@ -6,7 +6,7 @@ This stack primarily uses three live env files:
 - `~/secrets/scripts.env`
 - `/etc/acme/dynu.env`
 
-The repo tracks three matching example env files:
+The repo includes three matching example env files:
 
 - `secrets/ha.env.example` -> `~/secrets/ha.env`
 - `secrets/scripts.env.example` -> `~/secrets/scripts.env`
@@ -67,7 +67,7 @@ It affects:
 - `~/scripts/notify_email.py`
 - host scripts that call `notify_email.py`, such as `notify_cert_failure.sh`, `server_healthcheck.sh`, `modsec_alert.py`, `disk_healthcheck.sh`, `lynis_audit.sh`, `server_make_snapshot.sh`, and `trivy_scan.sh`
 
-In the current `~/ha/docker-compose.yml`, none of the current `scripts.env` keys (`HA_TOKEN`, `EMAIL_*`) are forwarded into container `environment:` blocks.
+In the current `~/ha/docker-compose.yml`, `HA_TOKEN` is forwarded into Home Assistant. The `EMAIL_*` values are used by host-side scripts and are not forwarded into containers.
 
 Common values in this file:
 
@@ -88,8 +88,7 @@ It affects:
 - the manual `acme.sh` issue/install commands
 - `etc/systemd/system/acme-renew.service`
   - loads it with `EnvironmentFile=/etc/acme/dynu.env`
-- `~/scripts/acme_renew.sh`
-  - passes it to dockerized `acme.sh` with `--env-file /etc/acme/dynu.env`
+  - passes it to `acme.sh` running inside a temporary Docker container with `--env-file /etc/acme/dynu.env`
 
 Values in here:
 

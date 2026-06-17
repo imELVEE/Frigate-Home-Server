@@ -16,17 +16,17 @@ Scope: Secure Home Assistant ingress via nginx/WAF (external access supported) w
 ## Highlights
 
 - HTTPS entry point: strict Host enforcement, ModSecurity/CRS with tuned exclusions, and TLS via DNS-01 ACME.
-- Recurring checks: 30-minute healthchecks with email/MQTT alerts and `/api` probes that include HA tokens to avoid bans.
-- Routine maintenance: hourly ACME renew with automatic nginx reload, weekly CVE and host audits (Trivy + Lynis), and logrotate on WAF audit logs.
+- Recurring checks: 10-minute container checks plus 30-minute server healthchecks with email/MQTT alerts and `/api` probes that include HA tokens to avoid bans.
+- Routine maintenance: hourly ACME renew with automatic nginx reload, monthly Mosquitto TLS rotation, weekly CVE and host audits (Trivy + Lynis), and logrotate on WAF audit logs.
 - Rebuild guide: documented rebuild from bare Ubuntu with all secrets and env files kept outside git.
 - Backups: rotating config snapshots that keep the newest three and exclude media from the archive.
 
 ## Key Design Choices
 
-- Bridge networks instead of host networking to preserve isolation and minimize accidental exposure; only nginx publishes 80/443.
+- Bridge networks instead of host networking to preserve isolation and minimize accidental exposure; nginx publishes 80/443, and Home Assistant publishes 8123 for LAN-only fallback.
 - DNS-01 ACME avoids inbound challenge ports; nginx terminates TLS and enforces headers + WAF in one place.
 - MQTT uses TLS with a local CA on port `8883`.
-- Secrets live in env files; example env files are tracked in the repo, while real files are gitignored and set to `chmod 600` so the repo is sharable without redaction.
+- Secrets live in env files; example env files are included in the repo, while real files are gitignored and set to `chmod 600` so the repo is sharable without redaction.
 - Health checks, backups, and cert renewals run through scripts and timers so the same steps happen every time.
 
 ---
@@ -37,19 +37,20 @@ Scope: Secure Home Assistant ingress via nginx/WAF (external access supported) w
 - **Hardware:** Small form factor Intel box with iGPU (VAAPI used for video decode)
 - **Core services (Docker):**
   - `nginx` (reverse proxy + WAF)
-  - `homeassistant` (custom image with `hass-web-proxy-lib`)
+  - `homeassistant` (custom image that installs Frigate integration requirements from the integration manifest)
   - `mosquitto` (MQTT broker)
   - `frigate` (video analytics/detection)
 - **Networks (Docker bridges):**
-  - `ha_net`: `nginx` <-> `homeassistant` (only nginx publishes 80/443)
+  - `ha_net`: `nginx` <-> `homeassistant` (nginx publishes 80/443; HA publishes 8123 for LAN-only fallback)
   - `frigate_bridge`: `homeassistant` <-> `mosquitto` <-> `frigate` (internal-only)
 - **Ingress:**
-  - Dynu DDNS for `home.example.net`
+  - Dynu DDNS for `<PUBLIC_HOSTNAME>`
   - Let's Encrypt via DNS-01 (Dynu API) using `acme.sh`
   - Nginx terminates HTTPS and enforces security headers + WAF
 - **Health & Automation:**
   - Systemd timers for ACME renew and recurring server health checks
-  - Scripts for backups, disk checks, CVE scans (Trivy), and host audits (Lynis)
+  - Cron jobs for container checks, disk checks, Mosquitto TLS rotation, CVE scans (Trivy), and host audits (Lynis)
+  - Scripts for backups, checks, TLS rotation, and alerts
 
 ---
 
@@ -57,7 +58,7 @@ Scope: Secure Home Assistant ingress via nginx/WAF (external access supported) w
 
 - **Reverse proxy in front of Home Assistant**
   - TLS termination with Let's Encrypt ECC certs
-  - Strict Host enforcement (unknown hosts are dropped with HTTP 444)
+  - Strict Host enforcement (unknown hosts are dropped with nginx 444, which closes the connection)
   - Security headers (HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy)
 - **Web Application Firewall (ModSecurity + OWASP CRS)**
   - Blocking mode on `/`, `/auth`, and `/api`
@@ -66,7 +67,7 @@ Scope: Secure Home Assistant ingress via nginx/WAF (external access supported) w
 - **Network segmentation**
   - No container uses `network_mode: host`
   - MQTT broker and Frigate live only on `frigate_bridge`
-  - Only nginx exposes ports 80/443 to the WAN
+  - Only nginx exposes ports 80/443 to the WAN; HA 8123 is a LAN fallback only
 - **MQTT hardening**
   - TLS listener on 8883 with local CA
   - Auth required (`allow_anonymous false`)
@@ -76,13 +77,13 @@ Scope: Secure Home Assistant ingress via nginx/WAF (external access supported) w
   - External URL + CORS allowlist
   - Runs as UID 1000, not root
 - **Secrets management**
-  - `~/secrets/ha.env`, `~/secrets/scripts.env` (mode 600, git-ignored; example files `secrets/ha.env.example` and `secrets/scripts.env.example` tracked in repo)
-  - `/etc/acme/dynu.env` (root-only) for Dynu API keys; example file `etc/acme/dynu.env.example` tracked in repo
+  - `~/secrets/ha.env`, `~/secrets/scripts.env` (mode 600, git-ignored; example files `secrets/ha.env.example` and `secrets/scripts.env.example` are included)
+  - `/etc/acme/dynu.env` (root-only) for Dynu API keys; example file `etc/acme/dynu.env.example` is included
 - **Monitoring & hygiene**
   - Systemd timers for:
     - ACME renew (hourly) + nginx reload on success
     - Server healthcheck (every 30 minutes) with email/MQTT alerts
-  - Optional weekly Trivy (CVE scan) + Lynis (host audit)
+  - Cron jobs for 10-minute container checks, 4-hour disk checks, monthly Mosquitto TLS rotation, weekly Trivy, and weekly Lynis
   - UFW locked down: only 80/443 public; SSH and HA 8123 limited to LAN
 
 ---
@@ -101,7 +102,7 @@ Directory structure in the home directory:
   - `acme/`
 - `scripts/` - health checks, snapshots, TLS renewal, email alerts
 - `secrets/` - `.env` files (git-ignored, mode 600)
-- `logs/` - runtime script logs (created when scripts run, not tracked in git)
+- `logs/` - runtime script logs (created when scripts run, not committed to git)
 - `snapshots/` - configuration backups and health logs
 
 ---
@@ -149,7 +150,7 @@ This repo has multiple markdowns for different parts of the stack:
   ```
 - HA reachability via proxy:
   ```bash
-  curl -I -k https://home.example.net/
+  curl -I -k https://<PUBLIC_HOSTNAME>/
   ```
 - MQTT pub/sub check:
   ```bash
@@ -172,7 +173,7 @@ This repo has multiple markdowns for different parts of the stack:
 
 - Host OS: Ubuntu 24.04 LTS (primary target)
 - Hardware: 2014 Acer AXC-605-UB1F (Haswell iGPU using i965 VAAPI)
-- Home Assistant: custom image based on `ghcr.io/home-assistant/home-assistant:stable` with `hass-web-proxy-lib==0.0.7`
+- Home Assistant: custom image based on `ghcr.io/home-assistant/home-assistant:stable`; Frigate integration Python requirements are installed dynamically from the bundled integration manifest
 - Frigate: `ghcr.io/blakeblackshear/frigate:0.16.1`
 - Mosquitto: `eclipse-mosquitto:2`
 - Nginx/WAF: `owasp/modsecurity-crs:nginx`
@@ -191,6 +192,6 @@ If you just want to run the existing configuration on compatible hardware:
 
 1. Prepare an Ubuntu 24.04 host.
 2. Recreate the directory layout (`ha/`, `scripts/`, `secrets/`, etc.).
-3. Copy and fill `~/secrets/ha.env` and `~/secrets/scripts.env` from the tracked example files.
+3. Copy and fill `~/secrets/ha.env` and `~/secrets/scripts.env` from the example files in this repo.
 4. If you want external HTTPS access, configure Dynu and `/etc/acme/dynu.env` for DNS-01; otherwise keep the stack LAN-only.
 5. Follow `docs/build-from-scratch.md` to build and start the stack.

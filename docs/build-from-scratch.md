@@ -7,7 +7,7 @@ This is a practical guide to building the server from scratch if it were ever co
 - Ubuntu 24.04 LTS installed
 - Non-root user with `sudo`
 - Dynu account + API credentials (if using DNS-01/HTTPS)
-- Domain/DDNS hostname (e.g. `home.example.net`) if you plan to expose externally
+- Domain/DDNS hostname (e.g. `<PUBLIC_HOSTNAME>`) if you plan to expose externally
 
 ## Exit criteria
 
@@ -39,8 +39,8 @@ Lock down the host firewall with LAN-focused access rules:
 
     sudo ufw default deny incoming
     sudo ufw allow 80,443/tcp
-    sudo ufw allow from LAN_SUBNET to any port 22 proto tcp
-    sudo ufw allow from LAN_SUBNET to any port 8123 proto tcp
+    sudo ufw allow from <LAN_SUBNET> to any port 22 proto tcp
+    sudo ufw allow from <LAN_SUBNET> to any port 8123 proto tcp
     sudo ufw enable
 
 Verify:
@@ -128,7 +128,7 @@ Write `~/ha/docker-compose.yml` to define the services, networks, and volumes. T
   - Preferred: bridge networks for isolation and DNS by service name; fallback to host networking only if a device/driver forces it, and document the lost isolation/port exposure.
 - Volumes:
   - Bind mounts under `~/ha/...`
-  - `/etc/localtime:ro` for time sync
+  - `/etc/localtime:ro` for Home Assistant; Frigate explicitly mounts the `America/New_York` zoneinfo file
 - Healthcheck:
   - For nginx, curl `http://127.0.0.1:18081/healthz`
 
@@ -136,7 +136,7 @@ Write `~/ha/docker-compose.yml` to define the services, networks, and volumes. T
 
 ## Nginx + WAF Configuration (optional external exposure)
 
-Even on a LAN-only setup, keep nginx as the single ingress and WAF; publishing 80/443 externally is optional. These are the standard HTTP/HTTPS ports.
+Even on a LAN-only setup, keep nginx as the single access point and WAF; publishing 80/443 externally is optional. These are the standard HTTP/HTTPS ports.
 - If you are LAN-only and trust your LAN, you can skip DDNS/external TLS and access Home Assistant directly at `http://<host-ip>:8123`. The main risk then is anyone or anything on your LAN (Wi-Fi or wired). In this setup, 8123 is still exposed to LAN as a fallback if DDNS ever goes down.
 
 Under `~/ha/nginx/`:
@@ -152,12 +152,22 @@ Under `~/ha/nginx/`:
   - WebSocket connection mapping
 - `conf.d/00-healthz.conf.template`
   - Loopback-only healthcheck endpoint rendered with `HA_EXTERNAL_HOST`
+- `conf.d/10-http-redirect.conf.template`
+  - Drops wrong-host HTTP requests with nginx `444`
+  - Redirects valid HTTP requests to HTTPS with `308`
 - `conf.d/ha-extra/21-auth-loginflow.conf`
   - CRS tuning for the Home Assistant login flow (e.g. removing rule 920420 and relaxing that handshake)
 - `conf.d/modsecurity.conf`, `conf.d/logging.conf`
   - WAF and logging configuration
 
-Add a small entrypoint snippet (e.g., `entrypoint.d/05-render-ha-conf.sh`) to run `envsubst` on `homeassistant.conf.template` and produce `homeassistant.conf` using `HA_EXTERNAL_HOST`.
+Add a small entrypoint snippet (e.g., `entrypoint.d/05-render-ha-conf.sh`) to run `envsubst` on the HA, healthz, and HTTP redirect templates using `HA_EXTERNAL_HOST`.
+
+Install the custom logrotate files:
+
+- `/etc/logrotate.d/ha-nginx`
+  - Rotates nginx access/error logs weekly.
+- `/etc/logrotate.d/ha-modsec`
+  - Rotates the ModSecurity audit log weekly and runs `modsec_alert.py` on the rotated audit log.
 
 Also create `nginx/ssl/` for certs:
 
@@ -173,13 +183,19 @@ You'll populate these via ACME in step 9.
 Create `~/ha/homeassistant/Dockerfile`:
 
 - Base: `ghcr.io/home-assistant/home-assistant:stable`
-- Install `hass-web-proxy-lib` (required by the Frigate integration)
+- Install the Python requirements listed in `custom_components/frigate/manifest.json`
 - Use non-root UID/GID (e.g. 1000)
 
 Example (simplified):
 
     FROM ghcr.io/home-assistant/home-assistant:stable
-    RUN pip install --no-cache-dir hass-web-proxy-lib==0.0.7
+    COPY custom_components/frigate/manifest.json /tmp/frigate-manifest.json
+    RUN python3 - <<'PY'
+    import json, subprocess, sys
+    requirements = json.load(open("/tmp/frigate-manifest.json")).get("requirements", [])
+    if requirements:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", *requirements])
+    PY
 
 Populate `~/ha/homeassistant/configuration.yaml`:
 
@@ -192,7 +208,7 @@ Populate `~/ha/homeassistant/configuration.yaml`:
 - `ip_ban_enabled: true`
 - Low `login_attempts_threshold` (e.g. 3)
 - CORS allowlist restricted to `EXTERNAL_URL`
-- MQTT configuration pointing to Mosquitto (host `mosquitto`, port `8883` with TLS CA mounted)
+- MQTT integration enabled with `mqtt:`; broker host, TLS, and credentials are configured through the Home Assistant UI
 
 Add:
 
@@ -224,7 +240,7 @@ Create `~/scripts/renew_mosquitto_tls.sh` to:
 
 - Create a local CA if missing
 - Issue a server cert with SANs for:
-  - `home.example.net`
+  - `<PUBLIC_HOSTNAME>`
   - `HA_LAN_IP`
   - `localhost`
 - Drop `ca.crt`, `server.crt`, and `server.key` into `ha/mosquitto/config/tls/`
@@ -257,9 +273,9 @@ Issue the initial certificate:
     docker run --rm --env-file /etc/acme/dynu.env \
       -v ~/ha/acme:/acme.sh -v ~/ha/nginx/ssl:/deploy \
       neilpang/acme.sh sh -lc 'acme.sh --home /acme.sh \
-        --register-account -m you@example.com \
+        --register-account -m <PRIVATE_ACCOUNT_EMAIL> \
         --server letsencrypt \
-        --issue --dns dns_dynu -d home.example.net --keylength ec-256'
+        --issue --dns dns_dynu -d <PUBLIC_HOSTNAME> --keylength ec-256'
 
 Install the cert/key into nginx's SSL directory:
 
@@ -268,7 +284,7 @@ Install the cert/key into nginx's SSL directory:
       neilpang/acme.sh sh -lc 'acme.sh --home /acme.sh \
         --server letsencrypt \
         --ecc \
-        --install-cert -d home.example.net \
+        --install-cert -d <PUBLIC_HOSTNAME> \
           --fullchain-file /deploy/fullchain.pem \
           --key-file /deploy/privkey.pem'
 
@@ -288,32 +304,17 @@ Create `acme-renew.service`:
 
     [Service]
     Type=oneshot
-    WorkingDirectory=<HOME>/ha
+    WorkingDirectory=/home/reolink_server_admin/ha
     EnvironmentFile=/etc/acme/dynu.env
-    ExecStart=<HOME>/scripts/acme_renew.sh
-    ExecStartPost=<HOME>/ha/compose.sh -f <HOME>/ha/docker-compose.yml exec -T nginx /usr/sbin/nginx -s reload
+    ExecStart=/usr/bin/docker run --rm --env-file /etc/acme/dynu.env \
+      -v /home/reolink_server_admin/ha/acme:/acme.sh \
+      -v /home/reolink_server_admin/ha/nginx/ssl:/deploy \
+      neilpang/acme.sh sh -lc 'acme.sh --home /acme.sh --cron --server letsencrypt'
+    ExecStartPost=/home/reolink_server_admin/ha/compose.sh -f /home/reolink_server_admin/ha/docker-compose.yml exec -T nginx /usr/sbin/nginx -s reload
     User=root
     EOF
 
-Create `~/scripts/acme_renew.sh`:
-
-    cat > ~/scripts/acme_renew.sh <<'EOF'
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    /usr/bin/docker run --rm --env-file /etc/acme/dynu.env \
-      -v "$HOME/ha/acme:/acme.sh" \
-      -v "$HOME/ha/nginx/ssl:/deploy" \
-      neilpang/acme.sh sh -lc 'acme.sh --home /acme.sh --cron --server letsencrypt' \
-      || {
-        "$HOME/scripts/notify_cert_failure.sh" "ACME" "Primary domain via acme.sh renew failed"
-        exit 1
-      }
-    EOF
-
-Make it executable:
-
-    chmod +x ~/scripts/acme_renew.sh
+This is how certificate renewals happen: systemd runs `acme.sh` inside a temporary Docker container and reloads nginx after success. If you add failure email, put that logic in an explicit shell wrapper or a systemd failure handler rather than appending a bare `|| notify...` tail to `ExecStart=`.
 
 Create `acme-renew.timer`:
 
@@ -333,14 +334,6 @@ Create `acme-renew.timer`:
 Enable:
 
     sudo systemctl enable --now acme-renew.timer
-
-Optional belt-and-suspenders cron:
-
-    crontab -e
-
-Add:
-
-    3 4 * * * "$HOME/.acme.sh"/acme.sh --cron --home "$HOME/.acme.sh" > /dev/null
 
 ---
 
@@ -415,7 +408,7 @@ Review:
 
 - `docker logs nginx|homeassistant|mosquitto|frigate`
 - `ha/nginx/log/` and `ha/nginx/logs/modsec/audit.log`
-- HA UI at `https://home.example.net/`
+- HA UI at `https://<PUBLIC_HOSTNAME>/`
 
 ---
 
@@ -426,13 +419,24 @@ Use `server_make_snapshot.sh` to create versioned tarball backups of:
 - `/etc`
 - `~/ha`
 - `~/scripts`
+- optional `~/changelog.md`
 
 Example (from `~/scripts/server_make_snapshot.sh`):
 
 - Output to `~/snapshots/server/v1/SNAPSHOT_YYYYMMDDTHHMMSSZ/`
 - Keep last 3 snapshots per major stack version
+- Version changes are based on the running Compose service image names and image IDs for Home Assistant, Frigate, and nginx.
+- Frigate media and the snapshot tree itself are excluded, but the archive can still contain private runtime state and should not be published.
 
 Run manually or via cron/systemd as needed.
+
+The current scheduled host jobs are:
+
+- `/etc/cron.d/container-healthcheck` runs `container_healthcheck.sh` every 10 minutes.
+- `/etc/cron.d/disk-healthcheck` runs `disk_healthcheck.sh` every 4 hours.
+- `/etc/cron.d/mosquitto-tls-renew` runs `renew_mosquitto_tls.sh` monthly.
+- `/etc/cron.weekly/trivy-scan` runs `trivy_scan.sh`.
+- `/etc/cron.weekly/lynis-audit` runs `lynis_audit.sh`.
 
 ---
 

@@ -56,11 +56,17 @@ Here, the OWASP CRS is used in:
 - `conf.d/00-healthz.conf.template`  
   Local loopback-only healthcheck endpoint rendered with `HA_EXTERNAL_HOST`.
 
-- `conf.d/ha-extra/21-auth-loginflow*.conf`  
+- `conf.d/10-http-redirect.conf.template`
+  Port 80 server block rendered with `HA_EXTERNAL_HOST`; valid hosts get a `308` HTTPS redirect and wrong hosts are dropped with nginx `444`.
+
+- `conf.d/ha-extra/10-modsec-baseline.conf`
+  Default HTTPS-server WAF mode is `DetectionOnly`; individual UI/API locations explicitly turn blocking on.
+
+- `conf.d/ha-extra/21-auth-loginflow.conf`
   Narrow CRS tuning for the Home Assistant login flow.
 
 - `conf.d/modsecurity.conf`  
-  Enables ModSecurity and loads ModSecurity config.
+  Enables ModSecurity, loads ModSecurity config, and defines the single audit-log configuration.
 
 - `conf.d/logging.conf`  
   Log formats and destinations.
@@ -76,9 +82,10 @@ Here, the OWASP CRS is used in:
 
 ## How Requests Flow
 
-1. Client hits `https://HA_EXTERNAL_HOST/`.
+1. Client hits `http://HA_EXTERNAL_HOST/` or `https://HA_EXTERNAL_HOST/`.
 2. nginx checks the `Host` header:
-   - If it doesn't match `HA_EXTERNAL_HOST`, returns HTTP 444 (no response).
+   - If it doesn't match `HA_EXTERNAL_HOST`, nginx returns 444, which closes the connection without a normal HTTP response.
+   - If HTTP host matches, nginx returns `308` to the HTTPS URL.
 3. Method check:
    - Only allows a reasonable set (e.g. GET/POST/HEAD/OPTIONS/PUT/DELETE).
 4. Security headers applied:
@@ -154,6 +161,8 @@ From `~/ha`:
 
       ./compose.sh exec nginx tail -f /var/log/modsecurity/audit.log
 
+- WAF audit logs are rotated by `/etc/logrotate.d/ha-modsec`; that rotation runs `modsec_alert.py` against the rotated audit log. Standard nginx access/error logs rotate through `/etc/logrotate.d/ha-nginx`.
+
 ---
 
 ## Potential problems
@@ -165,4 +174,3 @@ From `~/ha`:
 - Healthcheck expects HTTP `200`, `401`, or `403` and uses `$$code` in Compose so `${HA_EXTERNAL_HOST}` is expanded at container runtime instead of by Compose.
 - CRS exclusions for `/healthz` and webhook rule `932130` live in `ha-extra/22-modsec-exclusions.conf`.
 - Audit logs are pinned to `/var/log/modsecurity/audit.log`; keep that path aligned between the ModSecurity config and the mounted host directory.
-

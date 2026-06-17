@@ -2,6 +2,8 @@
 
 Frigate watches RTSP camera streams, detects objects (persons here), and publishes events via MQTT. In this stack it offloads video decoding to the Intel iGPU (VAAPI) and uses the NVR's lower-resolution RTSP substreams to keep resource usage low.
 
+The Frigate container explicitly uses `America/New_York` for UI/event timestamps while the host remains on UTC.
+
 ---
 
 ## Basics
@@ -60,7 +62,7 @@ Current config:
 - **Detector:**
   - CPU detector with 3 threads
 - **Objects:**
-  - Only `person` is tracked
+  - Only `person` detection is enabled
   - Person filters are tuned to reduce false positives
 - **Motion:**
   - Global motion settings live in `config.yml`
@@ -112,5 +114,9 @@ From `~/ha`:
 - Verify MQTT reachability from inside Frigate (TLS):
 
       ./compose.sh exec frigate sh -lc 'nc -z mosquitto 8883'
+
+- Check Frigate's internal API from inside the container:
+
+      ./compose.sh exec frigate curl -f http://127.0.0.1:5000/api/version
 
 ---

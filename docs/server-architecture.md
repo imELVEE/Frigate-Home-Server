@@ -9,7 +9,7 @@ This document describes how the stack is laid out.
 - **Host OS:** Ubuntu 24.04 LTS
 - **Hardware:** Small form factor Intel box (e.g. Acer mini tower) with integrated GPU
   - VAAPI (`LIBVA_DRIVER_NAME=i965`) is used so Frigate can offload H.264/H.265 decode to the iGPU
-- **Timezone:** Configured for the host's local zone (e.g. `America/New_York`)
+- **Timezone:** host stays on UTC; Home Assistant and Frigate containers explicitly use `America/New_York`
 
 ---
 
@@ -24,7 +24,7 @@ The stack consists of four main services, all running in Docker:
 
 Supporting pieces:
 
-- **Dynu DDNS** for a stable public hostname (e.g. `home.example.net`)
+- **Dynu DDNS** for a stable public hostname (e.g. `<PUBLIC_HOSTNAME>`)
 - **Let's Encrypt via ACME (DNS-01 with Dynu)** for TLS certificates
 - **Systemd timers + shell/Python scripts** for:
   - Health checks
@@ -46,7 +46,7 @@ flowchart LR
   HA -. optional .-> Push[Mobile push service]
   HA -. optional .-> Email[SMTP/email service]
   NoteBridges[[Internal traffic lives on Docker bridges]]:::note
-  NotePorts[[Only nginx publishes host ports]]:::note
+  NotePorts[[nginx publishes 80/443; HA 8123 is LAN fallback]]:::note
   NoteBridges -.-> Nginx
   NoteBridges -.-> HA
   NotePorts -.-> Nginx
@@ -87,7 +87,8 @@ Two bridge Docker networks act as private switches:
 
 - `ha_net`
   - Connects `nginx` <-> `homeassistant`
-  - Only `nginx` exposes ports `80/443` on the host
+  - `nginx` exposes ports `80/443` on the host
+  - Home Assistant also exposes `8123` on the host for LAN-only fallback
 - `frigate_bridge`
   - Connects `homeassistant` <-> `mosquitto` <-> `frigate`
   - MQTT and Frigate are never directly exposed to the host's WAN interface
@@ -110,7 +111,7 @@ Home Assistant's `configuration.yaml` defines `trusted_proxies` as:
 
 - `127.0.0.1` / `::1`
 - The subnets used by `ha_net` and `frigate_bridge`
-- LAN CIDR (e.g. `192.168.50.0/24`)
+- LAN CIDR from `LAN_SUBNET`
 
 This means only nginx and known internal addresses can set `X-Forwarded-For`, so internet clients cannot send fake forwarded IPs.
 
@@ -119,7 +120,7 @@ This means only nginx and known internal addresses can set `X-Forwarded-For`, so
 - **Internal:** Docker bridge networks, HA/Frigate/Mosquitto containers, and LAN clients you control.
 - **Exposed externally:** nginx, because it is the only service with host ports and can face the internet when external access is enabled.
 - **Internet traffic:** requests coming from outside your network.
-- **Main limits:** only nginx publishes ports; WAF blocks `/auth` and `/api`; DNS-01 avoids inbound challenge ports; `trusted_proxies` is scoped to loopback, Docker subnets, and the LAN CIDR.
+- **Main limits:** only nginx should be public; HA 8123 is LAN-only fallback; WAF blocks `/auth` and `/api`; DNS-01 avoids inbound challenge ports; `trusted_proxies` is scoped to loopback, Docker subnets, and the LAN CIDR.
 
 ---
 
@@ -136,7 +137,8 @@ Role:
 
 Key behaviors:
 
-- Rejects requests with wrong `Host` header using HTTP 444
+- Rejects requests with wrong `Host` header using nginx 444, which closes the connection without a normal HTTP response
+- Redirects valid HTTP requests to HTTPS with status `308`
 - Adds HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
 - Rate limits `/auth` and `/api` to slow brute force and abuse
 - WAF in:
@@ -168,7 +170,7 @@ Security:
 
 Integrations:
 
-- MQTT integration pointing to Mosquitto
+- MQTT integration enabled in YAML, with broker host/TLS/credentials configured through the Home Assistant UI
 - Frigate integration as a custom component
 - HACS for additional community add-ons
 
@@ -217,17 +219,16 @@ Configuration highlights:
 
 ## Certificates & ACME
 
-- Public hostname provided by Dynu DDNS (e.g. `home.example.net`)
-- TLS certificates obtained with `acme.sh` (dockerized) using Dynu's DNS-01 API:
+- Public hostname provided by Dynu DDNS (e.g. `<PUBLIC_HOSTNAME>`)
+- TLS certificates obtained with `acme.sh` running inside a temporary Docker container using Dynu's DNS-01 API:
   - Works through NAT without opening port 80
 - Certs installed into `ha/nginx/ssl/`:
   - `fullchain.pem`
   - `privkey.pem`
 - Systemd timer `acme-renew.timer` runs hourly:
-  - Executes dockerized `acme.sh --cron`
+  - Executes `acme.sh --cron` inside a temporary Docker container directly from the unit
   - Installs any renewed certs
   - Reloads nginx
-  - Optionally emails on failure
 
 ---
 
@@ -246,6 +247,4 @@ Timers:
 
 - `server-healthcheck.timer` - runs `server_healthcheck.sh` every 30 minutes
 - `acme-renew.timer` - runs ACME renewal hourly with jitter
-- Optional cron jobs for:
-  - `acme.sh` as a second renewal path
-  - Weekly Trivy CVE scans and Lynis host audits
+- Weekly Trivy and Lynis run through cron jobs, not systemd timers.

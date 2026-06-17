@@ -33,7 +33,7 @@ Docker Compose defines which containers to start, which networks to attach, whic
   - `frigate_bridge` (Home Assistant <-> Mosquitto <-> Frigate)
 - **Volumes:**
   - Service subfolders under `~/ha`
-  - `/etc/localtime:ro` for consistent host/container time
+  - `/etc/localtime:ro` for Home Assistant; Frigate explicitly mounts the `America/New_York` zoneinfo file
 
 ---
 
@@ -44,9 +44,9 @@ Docker Compose defines which containers to start, which networks to attach, whic
   Handles the public 80/443 path.
 
 - **homeassistant (custom build)**  
-  Adds `hass-web-proxy-lib` required by the Frigate integration.  
+  Installs Python requirements dynamically from the bundled Frigate integration manifest.
   Runs as UID 1000 so configs stay user-owned, not root.  
-  Port 8123 is also published for optional direct host/LAN access.
+  Port 8123 is also published for direct LAN fallback; keep it off the public internet.
 
 - **mosquitto (`eclipse-mosquitto:2`)**  
   Internal MQTT broker on port 8883 with TLS, used by Frigate/HA with a local CA.
@@ -68,7 +68,7 @@ In this stack:
 - `ha_net` (e.g. `172.21.0.0/16`):
   - nginx <-> Home Assistant
   - nginx publishes 80/443 to the host
-  - Home Assistant also publishes 8123 to the host for optional direct access
+  - Home Assistant also publishes 8123 to the host for LAN fallback only
 - `frigate_bridge` (e.g. `172.18.0.0/16`):
   - Home Assistant <-> Mosquitto <-> Frigate
   - MQTT and Frigate never publish ports to the host
@@ -83,6 +83,7 @@ No container uses `network_mode: host`, which:
 ## Health & Lifecycle
 
 - nginx has a healthcheck that curls `127.0.0.1:18081/healthz` with `Host: ${HA_EXTERNAL_HOST}` and accepts HTTP 200, 401, or 403 as healthy.
+- `ha-stack.service` starts and stops the stack through `ha/compose.sh`, so boot-time Compose commands load the same env files as interactive commands.
 - Restart policy:
   - `restart: unless-stopped` so services auto-recover after reboots or transient failures.
 

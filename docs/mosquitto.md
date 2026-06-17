@@ -79,6 +79,7 @@ Steps:
 - Broker is attached only to the `frigate_bridge` Docker network.
 - No host ports are published in the Compose file (all access via container network).
 - HA and Frigate communicate with Mosquitto by container name (`mosquitto`) and port.
+- Home Assistant's MQTT broker settings are configured through the UI, while Frigate receives credentials from env substitution.
 
 TLS on `8883` is the only listener in the current setup.
 
@@ -108,3 +109,4 @@ From `~/ha`:
 - Port 8883 uses TLS; host-side probes to bridge-only MQTT ports will fail by design.
 - Keep the password file in sync and locked down; stale broker/client credential mismatches cause CONNACK 5 and flapping integrations.
 - Home Assistant's MQTT connection is UI-configured in the current setup; if its broker host, CA, or credentials drift, MQTT-driven entities and automations will go unavailable.
+- `server_healthcheck.sh` also uses `MQTT_USER` and `MQTT_PASSWORD` from `~/secrets/ha.env` when publishing failure notifications.
