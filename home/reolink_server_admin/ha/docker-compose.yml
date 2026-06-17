@@ -5,10 +5,12 @@ services:
     restart: unless-stopped
     networks:
     - frigate_bridge
+    labels:
+    - com.centurylinklabs.watchtower.enable=true
     volumes:
-    - ./mosquitto/config:/mosquitto/config
-    - ./mosquitto/data:/mosquitto/data
-    - ./mosquitto/log:/mosquitto/log
+    - /home/reolink_server_admin/ha/mosquitto/config:/mosquitto/config
+    - /home/reolink_server_admin/ha/mosquitto/data:/mosquitto/data
+    - /home/reolink_server_admin/ha/mosquitto/log:/mosquitto/log
   homeassistant:
     build: ./homeassistant
     container_name: homeassistant
@@ -28,8 +30,9 @@ services:
     - SOMEONE_ELSE_PHONE=${SOMEONE_ELSE_PHONE}
     - MQTT_USER=${MQTT_USER}
     - MQTT_PASSWORD=${MQTT_PASSWORD}
+    - HA_TOKEN=${HA_TOKEN}
     volumes:
-    - ./homeassistant:/config
+    - /home/reolink_server_admin/ha/homeassistant:/config
     - /etc/localtime:/etc/localtime:ro
   frigate:
     image: ghcr.io/blakeblackshear/frigate:0.16.1
@@ -40,12 +43,15 @@ services:
     shm_size: 256m
     devices:
     - /dev/dri/renderD128:/dev/dri/renderD128
+    labels:
+    - com.centurylinklabs.watchtower.enable=true
     volumes:
-    - ./frigate/config:/config
-    - ./frigate/media:/media/frigate
-    - ./mosquitto/config/tls/ca.crt:/config/mosquitto_ca.crt:ro
-    - /etc/localtime:/etc/localtime:ro
+    - /home/reolink_server_admin/ha/frigate/config:/config
+    - /home/reolink_server_admin/ha/frigate/media:/media/frigate
+    - /home/reolink_server_admin/ha/mosquitto/config/tls/ca.crt:/config/mosquitto_ca.crt:ro
+    - /usr/share/zoneinfo/America/New_York:/etc/localtime:ro
     environment:
+    - TZ=America/New_York
     - LIBVA_DRIVER_NAME=i965
     - FRIGATE_MQTT_USER=${MQTT_USER}
     - FRIGATE_MQTT_PASSWORD=${MQTT_PASSWORD}
@@ -67,6 +73,8 @@ services:
     ports:
     - 80:80
     - 443:443
+    labels:
+    - com.centurylinklabs.watchtower.enable=true
     volumes:
     - ./nginx/conf.d:/etc/nginx/conf.d
     - ./nginx/ssl:/etc/ssl:ro

@@ -1,0 +1,2 @@
+#!/bin/sh
+su - reolink_server_admin -c '/home/reolink_server_admin/scripts/trivy_scan.sh'

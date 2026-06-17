@@ -3,7 +3,6 @@ import os
 import smtplib
 import sys
 from email.message import EmailMessage
-from pathlib import Path
 
 
 def load_env_file(path: str) -> None:
@@ -21,10 +20,11 @@ def load_env_file(path: str) -> None:
             if key and key not in os.environ:
                 os.environ[key] = val
 
-HOME_DIR = Path(__file__).resolve().parent.parent
 
-# Load defaults from ~/secrets/scripts.env unless already set in environment
-load_env_file(str(HOME_DIR / "secrets" / "scripts.env"))
+# Load defaults from scripts/.env unless already set in environment
+load_env_file("/home/reolink_server_admin/secrets/scripts.env")
+# Legacy fallback if needed
+load_env_file("/home/reolink_server_admin/scripts/.env")
 
 SMTP_SERVER = os.environ.get("EMAIL_SMTP_SERVER")
 SMTP_PORT = os.environ.get("EMAIL_SMTP_PORT")

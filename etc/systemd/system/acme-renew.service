@@ -7,7 +7,10 @@ After=network-online.target docker.service
 Type=oneshot
 WorkingDirectory=/home/reolink_server_admin/ha
 EnvironmentFile=/etc/acme/dynu.env
-ExecStart=/home/reolink_server_admin/scripts/acme_renew.sh
+ExecStart=/usr/bin/docker run --rm --env-file /etc/acme/dynu.env \
+  -v /home/reolink_server_admin/ha/acme:/acme.sh \
+  -v /home/reolink_server_admin/ha/nginx/ssl:/deploy \
+  neilpang/acme.sh sh -lc 'acme.sh --home /acme.sh --cron --server letsencrypt'
 ExecStartPost=/home/reolink_server_admin/ha/compose.sh -f /home/reolink_server_admin/ha/docker-compose.yml exec -T nginx /usr/sbin/nginx -s reload
 User=root
 

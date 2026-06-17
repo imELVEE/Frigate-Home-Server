@@ -2,9 +2,7 @@
 # Weekly Trivy scan of running container images; emails on HIGH/CRITICAL findings.
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-HOME_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-LOG_DIR="$HOME_DIR/logs"
+LOG_DIR="/home/reolink_server_admin/logs"
 mkdir -p "$LOG_DIR"
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
 LOG_FILE="$LOG_DIR/trivy_scan_${TS}.log"
@@ -32,7 +30,7 @@ scan_failed=0
 } | tee "$LOG_FILE"
 
 if [[ $scan_failed -ne 0 ]]; then
-  "$SCRIPT_DIR/notify_email.py" \
+  /home/reolink_server_admin/scripts/notify_email.py \
     "CVE scan alert: HIGH/CRITICAL found" \
     "Trivy detected HIGH/CRITICAL vulnerabilities in running images. See $LOG_FILE"
 fi

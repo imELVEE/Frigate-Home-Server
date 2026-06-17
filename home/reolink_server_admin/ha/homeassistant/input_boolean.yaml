@@ -1,5 +1,5 @@
 my_notifications_all_silenced:
-  name: My Notifications - All Cameras
+  name: My Notifications — All Cameras
   icon: mdi:bell-off
 
 front_door_my_notifications_silenced:
@@ -19,7 +19,7 @@ side_gate_my_notifications_silenced:
   icon: mdi:bell-off
 
 someone_notifications_all_silenced:
-  name: Someone Notifications - All Cameras
+  name: Someone Notifications — All Cameras
   icon: mdi:bell-off
 
 front_door_someone_notifications_silenced:

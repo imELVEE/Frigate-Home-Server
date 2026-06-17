@@ -1,0 +1,4 @@
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+# Regenerate Mosquitto TLS cert and restart broker monthly; alert on failure
+5 4 1 * * root /home/reolink_server_admin/scripts/renew_mosquitto_tls.sh >> /home/reolink_server_admin/logs/mosquitto_tls_renew.log 2>&1 || /home/reolink_server_admin/scripts/notify_cert_failure.sh 'Mosquitto TLS' 'mosquitto TLS renew failed; see logs/mosquitto_tls_renew.log'

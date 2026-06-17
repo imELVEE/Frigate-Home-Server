@@ -1,0 +1,2 @@
+#!/bin/sh
+/home/reolink_server_admin/scripts/lynis_audit.sh

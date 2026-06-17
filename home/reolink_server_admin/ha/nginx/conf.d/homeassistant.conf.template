@@ -84,7 +84,7 @@ server {
     proxy_connect_timeout   60s;
   }
 
-  # --- Everything else (UI/static): WAF stays OFF (server default) ---
+  # --- Everything else (UI/static): WAF ON ---
   location / {
     # Enable WAF for UI/static
     modsecurity on;

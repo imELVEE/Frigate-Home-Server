@@ -9,8 +9,8 @@ User=reolink_server_admin
 WorkingDirectory=/home/reolink_server_admin/ha
 Environment=HOME=/home/reolink_server_admin
 RemainAfterExit=true
-ExecStart=/home/reolink_server_admin/ha/compose.sh up -d
-ExecStop=/home/reolink_server_admin/ha/compose.sh down
+ExecStart=/home/reolink_server_admin/ha/compose.sh -f /home/reolink_server_admin/ha/docker-compose.yml up -d
+ExecStop=/home/reolink_server_admin/ha/compose.sh -f /home/reolink_server_admin/ha/docker-compose.yml down
 
 [Install]
 WantedBy=multi-user.target

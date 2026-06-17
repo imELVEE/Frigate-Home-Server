@@ -1,0 +1,11 @@
+server {
+  listen 80 default_server;
+  listen [::]:80 default_server;
+  server_name ${HA_EXTERNAL_HOST};
+
+  if ($host != "${HA_EXTERNAL_HOST}") {
+    return 444;
+  }
+
+  return 308 https://$host$request_uri;
+}

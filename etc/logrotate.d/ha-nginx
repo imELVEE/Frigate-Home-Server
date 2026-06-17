@@ -1,0 +1,8 @@
+/home/reolink_server_admin/ha/nginx/log/*.log {
+  weekly
+  rotate 8
+  compress
+  missingok
+  copytruncate
+  notifempty
+}

@@ -1,14 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-HOME_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-
 # Notify via email on failure
 notify_fail() {
   local msg="$1"
-  if [[ -x "$SCRIPT_DIR/notify_email.py" ]]; then
-    "$SCRIPT_DIR/notify_email.py" \
+  if [[ -x /home/reolink_server_admin/scripts/notify_email.py ]]; then
+    /home/reolink_server_admin/scripts/notify_email.py \
       "Snapshot FAILED on $(hostname)" \
       "$msg"
   fi
@@ -27,17 +24,18 @@ fi
 # Config
 ###############################################################################
 
-BASE_HA_DIR="$HOME_DIR/ha"
-SCRIPTS_DIR="$SCRIPT_DIR"
-SNAPSHOT_ROOT="$HOME_DIR/snapshots/server"
+BASE_HA_DIR="/home/reolink_server_admin/ha"
+SCRIPTS_DIR="/home/reolink_server_admin/scripts"
+CHANGELOG_FILE="/home/reolink_server_admin/changelog.md"
+SNAPSHOT_ROOT="/home/reolink_server_admin/snapshots/server"
 
 MAX_PER_VERSION=3
 
-# Containers that define "server version".
-# Adjust these names to match your actual images if needed.
-HA_IMAGE_NAME="homeassistant"
-FRIGATE_IMAGE_NAME="blakeblackshear/frigate"
-NGINX_IMAGE_NAME="nginx"
+# Compose services that define "server version".
+# Image names are discovered from the running containers so local builds and
+# upstream image renames do not break version tracking.
+COMPOSE_CMD=( "$BASE_HA_DIR/compose.sh" -f "$BASE_HA_DIR/docker-compose.yml" )
+STACK_SERVICES=( homeassistant frigate nginx )
 
 ###############################################################################
 # Setup
@@ -47,19 +45,51 @@ mkdir -p "$SNAPSHOT_ROOT"
 DATE_UTC="$(date -u +"%Y%m%dT%H%M%SZ")"
 
 ###############################################################################
-# Determine a "server version" from container images
+# Determine a "server version" from running Compose service images
 ###############################################################################
 
-get_image_id() {
-  local image="$1"
-  docker image inspect "$image" --format '{{.Id}}' 2>/dev/null || echo "missing:$image"
+service_meta_key() {
+  local service="$1"
+  case "$service" in
+    homeassistant) echo "ha" ;;
+    *) echo "$service" ;;
+  esac
 }
 
-HA_IMG_ID="$(get_image_id "$HA_IMAGE_NAME")"
-FRIGATE_IMG_ID="$(get_image_id "$FRIGATE_IMAGE_NAME")"
-NGINX_IMG_ID="$(get_image_id "$NGINX_IMAGE_NAME")"
+get_service_container_id() {
+  local service="$1"
+  "${COMPOSE_CMD[@]}" ps -q "$service" 2>/dev/null | head -n 1 || true
+}
 
-STACK_SIG="$(printf '%s\n%s\n%s\n' "$HA_IMG_ID" "$FRIGATE_IMG_ID" "$NGINX_IMG_ID" \
+declare -a STACK_SIG_LINES=()
+declare -a STACK_META_LINES=()
+
+for service in "${STACK_SERVICES[@]}"; do
+  key="$(service_meta_key "$service")"
+  cid="$(get_service_container_id "$service")"
+
+  if [[ -z "$cid" ]]; then
+    image_name="missing-container:$service"
+    image_id="missing-container:$service"
+    cid="missing"
+  else
+    image_name="$(docker inspect "$cid" --format '{{.Config.Image}}' 2>/dev/null || true)"
+    image_id="$(docker inspect "$cid" --format '{{.Image}}' 2>/dev/null || true)"
+
+    [[ -z "$image_name" ]] && image_name="unknown-image:$service"
+    [[ -z "$image_id" ]] && image_id="unknown-image-id:$service"
+  fi
+
+  STACK_SIG_LINES+=( "${service}|${image_name}|${image_id}" )
+  STACK_META_LINES+=(
+    "${key}_service=$service"
+    "${key}_container_id=$cid"
+    "${key}_image_name=$image_name"
+    "${key}_image_id=$image_id"
+  )
+done
+
+STACK_SIG="$(printf '%s\n' "${STACK_SIG_LINES[@]}" \
   | sha256sum | awk '{print $1}')"
 
 VERSION_META_FILE="$SNAPSHOT_ROOT/.server_version"
@@ -109,17 +139,15 @@ if command -v docker >/dev/null 2>&1; then
   docker image ls > "$SNAPSHOT_DIR/docker_images.txt" || true
 fi
 
-cat > "$SNAPSHOT_DIR/runtime_meta.txt" <<EOF
+{
+cat <<EOF
 date_utc=$DATE_UTC
 version=$CURRENT_VERSION
 stack_sig=$STACK_SIG
-ha_image_name=$HA_IMAGE_NAME
-ha_image_id=$HA_IMG_ID
-frigate_image_name=$FRIGATE_IMAGE_NAME
-frigate_image_id=$FRIGATE_IMG_ID
-nginx_image_name=$NGINX_IMAGE_NAME
-nginx_image_id=$NGINX_IMG_ID
+stack_services=${STACK_SERVICES[*]}
 EOF
+printf '%s\n' "${STACK_META_LINES[@]}"
+} > "$SNAPSHOT_DIR/runtime_meta.txt"
 
 ###############################################################################
 # Create the server config snapshot tarball
@@ -131,6 +159,7 @@ TAR_PATH="$SNAPSHOT_DIR/server-config.tgz"
 #   /etc                          - system config
 #   $BASE_HA_DIR                  - HA stack (configs, acme, nginx, etc.)
 #   $SCRIPTS_DIR                  - your admin scripts
+#   $CHANGELOG_FILE               - live server change history
 #
 # We EXCLUDE:
 #   frigate/media                 - huge recordings, not needed to rebuild
@@ -139,10 +168,11 @@ TAR_PATH="$SNAPSHOT_DIR/server-config.tgz"
 tar czf "$TAR_PATH" \
   --ignore-failed-read \
   --exclude="${BASE_HA_DIR}/frigate/media" \
-  --exclude="$HOME_DIR/snapshots" \
+  --exclude="/home/reolink_server_admin/snapshots" \
   /etc \
   "$BASE_HA_DIR" \
-  "$SCRIPTS_DIR"
+  "$SCRIPTS_DIR" \
+  "$CHANGELOG_FILE"
 
 ###############################################################################
 # Rotate old snapshots within this version (keep MAX_PER_VERSION most recent)

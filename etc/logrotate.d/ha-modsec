@@ -1,0 +1,11 @@
+/home/reolink_server_admin/ha/nginx/logs/modsec/audit.log {
+  weekly
+  rotate 8
+  compress
+  missingok
+  notifempty
+  copytruncate
+  postrotate
+    /home/reolink_server_admin/scripts/modsec_alert.py /home/reolink_server_admin/ha/nginx/logs/modsec/audit.log.1 || true
+  endscript
+}

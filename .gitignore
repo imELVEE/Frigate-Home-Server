@@ -1,6 +1,12 @@
+# Local live-server source snapshot (contains private runtime state)
+/Live-Server/
+
 # Secrets and envs
-home/**/secrets/*
-!home/**/secrets/*.example
+/secrets/*
+!/secrets/*.example
+/home/**/secrets/*
+!/home/**/secrets/*.example
+/home/reolink_server_admin/scripts/.env
 .env
 .env.*
 *.env
@@ -89,6 +95,7 @@ ha/homeassistant/tls/
 
 # Frigate state/media backups
 ha/frigate/config/backup.db
+ha/frigate/config/frigate.db*
 ha/frigate/media/
 ha/frigate/config/.jwt_secret
 ha/frigate/config/.exports
@@ -99,12 +106,27 @@ ha/frigate/config/.vacuum
 ha/nginx/conf.d/homeassistant.conf
 ha/nginx/conf.d/00-healthz.conf
 
-# Ignore host /etc snapshot; re-allow custom unit files we track
+# Ignore host /etc snapshot; re-allow only selected sanitized files
 etc/**
+!etc/acme/
+!etc/acme/dynu.env.example
+!etc/cron.d/
+!etc/cron.d/container-healthcheck
+!etc/cron.d/disk-healthcheck
+!etc/cron.d/mosquitto-tls-renew
+!etc/cron.weekly/
+!etc/cron.weekly/lynis-audit
+!etc/cron.weekly/trivy-scan
+!etc/logrotate.d/
+!etc/logrotate.d/ha-modsec
+!etc/logrotate.d/ha-nginx
 !etc/systemd/
 !etc/systemd/system/
 !etc/systemd/system/acme-renew.service
 !etc/systemd/system/acme-renew.timer
+!etc/systemd/system/crowdsec-firewall-bouncer.service
+!etc/systemd/system/crowdsec-hub-update.service
+!etc/systemd/system/crowdsec-hub-update.timer
 !etc/systemd/system/server-healthcheck.service
 !etc/systemd/system/server-healthcheck.timer
 !etc/systemd/system/docker-prune.service
@@ -125,6 +147,7 @@ home/reolink_server_admin/ha/homeassistant/.ha_run.lock
 home/reolink_server_admin/ha/homeassistant/.HA_VERSION
 home/reolink_server_admin/ha/homeassistant/.cloud/
 home/reolink_server_admin/ha/homeassistant/tts/
+home/reolink_server_admin/ha/homeassistant/www/snapshots/
 home/reolink_server_admin/ha/acme/
 home/reolink_server_admin/ha/mosquitto/data/
 home/reolink_server_admin/ha/mosquitto/config/passwd
@@ -138,6 +161,7 @@ home/reolink_server_admin/ha/nginx/logs/
 home/reolink_server_admin/ha/nginx/ssl/
 home/reolink_server_admin/ha/homeassistant/tls/
 home/reolink_server_admin/ha/frigate/config/backup.db
+home/reolink_server_admin/ha/frigate/config/frigate.db*
 home/reolink_server_admin/ha/frigate/media/
 home/reolink_server_admin/ha/frigate/config/.jwt_secret
 home/reolink_server_admin/ha/frigate/config/.exports
@@ -145,6 +169,7 @@ home/reolink_server_admin/ha/frigate/config/.timeline
 home/reolink_server_admin/ha/frigate/config/.vacuum
 home/reolink_server_admin/ha/nginx/conf.d/homeassistant.conf
 home/reolink_server_admin/ha/nginx/conf.d/00-healthz.conf
+home/reolink_server_admin/ha/nginx/conf.d/10-http-redirect.conf
 
 # Snapshots/backups
 snapshots/

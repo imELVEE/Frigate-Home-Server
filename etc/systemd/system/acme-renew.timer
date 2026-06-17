@@ -1,5 +1,5 @@
 [Unit]
-Description=Run ACME renew hourly
+Description=Hourly acme.sh renewal check
 
 [Timer]
 OnCalendar=hourly

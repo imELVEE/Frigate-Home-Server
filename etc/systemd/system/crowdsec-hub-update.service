@@ -1,0 +1,7 @@
+[Unit]
+Description=Update CrowdSec hub (container or native)
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/crowdsec-hub-update.sh

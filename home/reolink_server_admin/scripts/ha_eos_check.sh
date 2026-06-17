@@ -6,18 +6,14 @@
 set -u
 export LC_ALL=C
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-HOME_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-SECRETS_DIR="$HOME_DIR/secrets"
-
-ENV_FILE="$SECRETS_DIR/ha.env"
+ENV_FILE="/home/reolink_server_admin/secrets/ha.env"
 if [[ -f "$ENV_FILE" ]]; then
   set -a
   # shellcheck disable=SC1090
   . "$ENV_FILE"
   set +a
 fi
-ENV_FILE_2="$SECRETS_DIR/scripts.env"
+ENV_FILE_2="/home/reolink_server_admin/secrets/scripts.env"
 if [[ -f "$ENV_FILE_2" ]]; then
   set -a
   # shellcheck disable=SC1090
@@ -26,12 +22,12 @@ if [[ -f "$ENV_FILE_2" ]]; then
 fi
 EXTERNAL_HOST="${HA_EXTERNAL_HOST:-}"
 if [[ -z "$EXTERNAL_HOST" ]]; then
-  echo "Set HA_EXTERNAL_HOST in $SECRETS_DIR/ha.env" >&2
+  echo "Set HA_EXTERNAL_HOST in /home/reolink_server_admin/secrets/ha.env" >&2
   exit 1
 fi
 HA_TOKEN="${HA_TOKEN:-}"
 if [[ -z "$HA_TOKEN" ]]; then
-  echo "Set HA_TOKEN in $SECRETS_DIR/scripts.env" >&2
+  echo "Set HA_TOKEN in /home/reolink_server_admin/secrets/scripts.env" >&2
   exit 1
 fi
 
@@ -138,7 +134,7 @@ if docker ps --format '{{.Names}}' | grep -q '^mosquitto$'; then
     | awk '/^[[:space:]]*listener[[:space:]]+[0-9]+/{print $2}' \
     | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
   if [[ -z "$LISTENER_PORTS" ]]; then
-    LISTENER_PORTS="8883"
+    LISTENER_PORTS="1883"
   fi
 
   # Check all configured listeners; use the first one as the default for auth tests

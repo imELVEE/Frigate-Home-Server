@@ -1,0 +1,4 @@
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+# Container health/HTTP checks; email on failures
+*/10 * * * * root /home/reolink_server_admin/scripts/container_healthcheck.sh

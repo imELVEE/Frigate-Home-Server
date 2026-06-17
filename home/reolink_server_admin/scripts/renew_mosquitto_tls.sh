@@ -2,13 +2,8 @@
 # Regenerate Mosquitto TLS server cert (signed by local CA) and restart broker.
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-HOME_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-HA_DIR="$HOME_DIR/ha"
-SECRETS_DIR="$HOME_DIR/secrets"
-
 # Load shared env if available (for HA_LAN_IP)
-ENV_FILE="$SECRETS_DIR/ha.env"
+ENV_FILE="/home/reolink_server_admin/secrets/ha.env"
 if [[ -f "$ENV_FILE" ]]; then
   set -a
   # shellcheck disable=SC1090
@@ -16,13 +11,13 @@ if [[ -f "$ENV_FILE" ]]; then
   set +a
 fi
 
-CONFIG_DIR="$HA_DIR/mosquitto/config"
+CONFIG_DIR="/home/reolink_server_admin/ha/mosquitto/config"
 TLS_DIR="$CONFIG_DIR/tls"
-SECURE_CA_DIR="$HA_DIR/mosquitto/ca_secure"
+SECURE_CA_DIR="/home/reolink_server_admin/ha/mosquitto/ca_secure"
 HOST_IP="${HA_LAN_IP:-}"
 HOST_DOMAIN="${HA_EXTERNAL_HOST:-}"
 if [[ -z "$HOST_IP" || -z "$HOST_DOMAIN" ]]; then
-  echo "Set HA_LAN_IP and HA_EXTERNAL_HOST in $SECRETS_DIR/ha.env before running." >&2
+  echo "Set HA_LAN_IP and HA_EXTERNAL_HOST in /home/reolink_server_admin/secrets/ha.env before running." >&2
   exit 1
 fi
 CA_KEY="$SECURE_CA_DIR/ca.key"
@@ -63,5 +58,5 @@ chown 1883:1883 "$SERVER_KEY" "$SERVER_CRT" "$CA_CRT" "$EXTFILE"
 chmod 640 "$SERVER_KEY" "$SERVER_CRT" "$CA_CRT" "$EXTFILE"
 
 # Restart broker to pick up new cert
-cd "$HA_DIR"
-"$HA_DIR/compose.sh" restart mosquitto
+cd /home/reolink_server_admin/ha
+/home/reolink_server_admin/ha/compose.sh restart mosquitto

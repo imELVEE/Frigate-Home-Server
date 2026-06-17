@@ -5,7 +5,6 @@ import subprocess
 import sys
 from collections import Counter
 from datetime import datetime
-from pathlib import Path
 from typing import Any, Dict
 
 LOG_PATH = sys.argv[1] if len(sys.argv) > 1 else None
@@ -82,7 +81,7 @@ if examples:
 
 body = "\n".join(lines)
 
-notify_script = str(Path(__file__).resolve().parent / "notify_email.py")
+notify_script = "/home/reolink_server_admin/scripts/notify_email.py"
 try:
     subprocess.run([notify_script, subject, body], check=True)
 except Exception as exc:
